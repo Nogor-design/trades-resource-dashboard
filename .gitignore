@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.idea/
+
+# Customer-provided source files can contain private contact and client data.
+data/*.xlsx
+data/*.xls
+data/*.xlsm
+data/*.pdf
+data/Candidate Tracking 2026*.csv

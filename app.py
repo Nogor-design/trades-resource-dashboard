@@ -16,6 +16,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from src.data_loader import load_all
+from src.customer_imports import load_customer_import_preview
 from src import rules, charts, components
 
 # New matching-engine modules
@@ -1042,8 +1043,14 @@ def get_data():
                 recruiter_activity=act, clients=data["clients"],
                 workload=wl, alerts=alrt, job_orders=data.get("job_orders", pd.DataFrame()))
 
+
+@st.cache_data(ttl=300)
+def get_customer_preview():
+    return load_customer_import_preview()
+
 with st.spinner("Loading data..."):
     D = get_data()
+    CUSTOMER_PREVIEW = get_customer_preview()
 
 asgn       = D["assignments"]
 workers    = D["workers"]
@@ -2767,13 +2774,15 @@ with tab8:
         "🗄️",
     )
 
-    st.info("All data shown is **generated demo data only**. No real employee, client, or business information is used. "
-            "A production version would connect to real spreadsheets, your ATS, or other approved data sources.", icon="ℹ️")
+    st.info(
+        "The main dashboard still uses the normalized demo tables. The Customer Imports tab stages the new customer files for review before they replace or extend the live dashboard feed.",
+        icon="ℹ️",
+    )
 
     try:
-        a1, a2, a3, a4, a5, a6 = st.tabs([
+        a1, a2, a3, a4, a5, a6, a7 = st.tabs([
             "Assignments", "Workers", "Open Positions",
-            "Recruiter Activity", "Clients", "Alerts",
+            "Recruiter Activity", "Clients", "Alerts", "Customer Imports",
         ])
 
         with a1:
@@ -2814,6 +2823,133 @@ with tab8:
                 st.caption(f"{len(alerts)} alerts")
                 st.dataframe(alerts, width="stretch", height=440)
                 components.csv_download_button(alerts, "alerts_export.csv")
+
+        with a7:
+            customer_summary = CUSTOMER_PREVIEW.get("summary", {})
+            customer_tables = CUSTOMER_PREVIEW.get("tables", {})
+            loaded_sources = customer_summary.get("loaded_sources", 0)
+
+            st.warning(
+                "Customer import previews may include private names, phone numbers, emails, and client details. "
+                "Keep raw uploads out of GitHub unless the repository and data policy are confirmed private.",
+                icon="🔒",
+            )
+
+            components.render_kpi_row([
+                {"label": "Roster Assignments", "value": customer_summary.get("assignments", 0), "color": "#1f5f8b"},
+                {"label": "Open Orders", "value": customer_summary.get("open_positions", 0), "color": "#f97316"},
+                {"label": "Candidates", "value": customer_summary.get("candidates", 0), "color": "#16a34a"},
+                {"label": "Test Rows", "value": customer_summary.get("candidate_tests", 0), "color": "#7c3aed"},
+                {"label": "Intake Prompts", "value": customer_summary.get("intake_questions", 0), "color": "#0f766e"},
+            ])
+
+            diag = customer_tables.get("import_diagnostics", pd.DataFrame())
+            if loaded_sources == 0:
+                st.error("No customer source files were loaded. Add the customer spreadsheets/PDF to the local data folder to preview mappings.")
+            elif not diag.empty:
+                st.caption("Import diagnostics")
+                st.dataframe(diag, width="stretch", hide_index=True)
+
+            ci1, ci2, ci3, ci4, ci5, ci6 = st.tabs([
+                "Roster Assignments",
+                "Open Orders",
+                "Candidates",
+                "Tests",
+                "Intake & Timecards",
+                "Ended Assignments",
+            ])
+
+            with ci1:
+                cust_asgn = customer_tables.get("customer_assignments", pd.DataFrame())
+                st.caption(f"{len(cust_asgn)} staged rows from the active roster workbook.")
+                if cust_asgn.empty:
+                    st.info("No active roster rows found.")
+                else:
+                    preview_cols = [
+                        "worker_name", "client_name", "role", "trade_category", "start_date",
+                        "end_date", "extension_status", "forecast_status", "next_action", "notes",
+                    ]
+                    show = fmt_dates(cust_asgn[[c for c in preview_cols if c in cust_asgn.columns]], [
+                        "start_date", "end_date",
+                    ])
+                    st.dataframe(show, width="stretch", height=420, hide_index=True)
+                    components.csv_download_button(cust_asgn, "customer_assignments_staged.csv", "Download staged assignments")
+
+            with ci2:
+                cust_pos = customer_tables.get("customer_open_positions", pd.DataFrame())
+                st.caption(f"{len(cust_pos)} staged open-order rows split out of the roster workbook.")
+                if cust_pos.empty:
+                    st.info("No open-order rows found.")
+                else:
+                    preview_cols = [
+                        "client_name", "role", "trade_category", "stage", "candidates_submitted",
+                        "candidate_submitted_names", "approval_status", "next_order_action",
+                    ]
+                    st.dataframe(cust_pos[[c for c in preview_cols if c in cust_pos.columns]], width="stretch", height=360, hide_index=True)
+                    components.csv_download_button(cust_pos, "customer_open_positions_staged.csv", "Download staged open orders")
+
+            with ci3:
+                cust_candidates = customer_tables.get("customer_candidates", pd.DataFrame())
+                st.caption(f"{len(cust_candidates)} staged candidate/recruiter process rows.")
+                if cust_candidates.empty:
+                    st.info("No candidate rows found.")
+                else:
+                    candidate_cols = [
+                        "candidate_name", "phone", "email", "primary_trade", "process_status",
+                        "application_status", "proficiency_testing", "best_test_score",
+                        "interview_completed", "references_completed", "profile_completed",
+                        "source_status", "action_item", "notes",
+                    ]
+                    show = cust_candidates[[c for c in candidate_cols if c in cust_candidates.columns]]
+                    st.dataframe(show, width="stretch", height=440, hide_index=True)
+                    components.csv_download_button(cust_candidates, "customer_candidates_staged.csv", "Download staged candidates")
+
+            with ci4:
+                tests = customer_tables.get("customer_candidate_tests", pd.DataFrame())
+                st.caption(f"{len(tests)} staged CNC/welder test result rows.")
+                if tests.empty:
+                    st.info("No test rows found.")
+                else:
+                    st.dataframe(tests[["candidate_name", "test_type", "raw_score", "score_percent", "source_file"]], width="stretch", height=420, hide_index=True)
+                    components.csv_download_button(tests, "customer_candidate_tests_staged.csv", "Download staged test results")
+
+            with ci5:
+                intake = customer_tables.get("customer_intake_questions", pd.DataFrame())
+                timecards = customer_tables.get("timecard_blueprint", pd.DataFrame())
+                st.caption("Client intake prompts and first-pass timecard module fields.")
+
+                tc1, tc2 = st.columns([1, 1])
+                with tc1:
+                    st.markdown("**Timecard Module Blueprint**")
+                    st.dataframe(timecards, width="stretch", height=360, hide_index=True)
+                    components.csv_download_button(timecards, "timecard_blueprint.csv", "Download timecard blueprint")
+                with tc2:
+                    st.markdown("**Timecard-Related Intake Questions**")
+                    if intake.empty:
+                        st.info("No intake questions loaded.")
+                    else:
+                        related = intake[intake.get("timecard_related", False) == True]
+                        if related.empty:
+                            st.info("No timecard-specific intake questions detected.")
+                        else:
+                            st.dataframe(related[["section", "question", "page"]], width="stretch", height=360, hide_index=True)
+
+                st.markdown("**Full Intake Question Extract**")
+                if intake.empty:
+                    st.info("No intake PDF prompts found.")
+                else:
+                    st.dataframe(intake[["section", "question", "page", "timecard_related"]], width="stretch", height=360, hide_index=True)
+                    components.csv_download_button(intake, "client_intake_questions_staged.csv", "Download intake questions")
+
+            with ci6:
+                ended = customer_tables.get("customer_ended_assignments", pd.DataFrame())
+                st.caption(f"{len(ended)} historical ended-assignment rows.")
+                if ended.empty:
+                    st.info("No ended assignments found.")
+                else:
+                    show = fmt_dates(ended, ["start_date", "end_date"])
+                    st.dataframe(show, width="stretch", height=420, hide_index=True)
+                    components.csv_download_button(ended, "customer_ended_assignments_staged.csv", "Download ended assignments")
 
     except Exception as e:
         st.error(f"Data/Admin error: {e}")
