@@ -138,67 +138,38 @@ header[data-testid="stHeader"] div {
 [data-testid="stSidebar"] [class*="SidebarUserContent"] {
     height: auto !important;
     max-height: none !important;
-    overflow: visible !important;
-    overflow-y: visible !important;
+    overflow-x: hidden !important;
     padding-bottom: 2rem !important;
 }
 
-/* ─── DESKTOP STATE (Screen >= 1200px): Pinned & static sidebar ─── */
+/* ─── DESKTOP STATE (Screen >= 1200px): native collapsible sidebar ─── */
 @media (min-width: 1200px) {
     [data-testid="stSidebar"],
-    section[data-testid="stSidebar"],
-    [class*="sidebar"] {
+    section[data-testid="stSidebar"] {
         background-color: #f1f5f9 !important;
         border-right: 1px solid #cbd5e1 !important;
-        transform: none !important;
-        transition: none !important;
-        display: block !important;
-        visibility: visible !important;
-        left: 0 !important;
-        position: fixed !important;
-        width: 336px !important;
-        min-width: 336px !important;
-        max-width: 336px !important;
         z-index: 100 !important;
-        top: 0 !important;
-        bottom: 0 !important;
-        height: 100vh !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
     }
     
     [data-testid="stSidebar"] > div {
         background-color: #f1f5f9 !important;
-        width: 336px !important;
-        min-width: 336px !important;
-        max-width: 336px !important;
-        visibility: visible !important;
-        display: flex !important;
-        opacity: 1 !important;
         height: auto !important;
-        overflow: visible !important;
-        overflow-y: visible !important;
+        overflow-x: hidden !important;
     }
     
-    /* Shift main content container to right to prevent overlap */
-    .main, 
-    [data-testid="stMain"],
-    [data-testid="stAppViewBlockContainer"],
-    [data-testid="stAppViewContainer"] > section {
-        margin-left: 336px !important;
-        transition: none !important;
-    }
-    
-    /* Hide all collapse and expand buttons since sidebar stays pinned */
+    /* Keep Streamlit's native hide/show controls visible on desktop. */
     [data-testid="stSidebarCollapseButton"],
     button[title="Expand sidebar"],
     button[title="Close sidebar"],
     button[class*="CollapseButton"],
     [data-testid="stSidebar"] button[class*="CollapseButton"] {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12) !important;
+        border-radius: 999px !important;
+        pointer-events: auto !important;
     }
 }
 
@@ -215,27 +186,18 @@ header[data-testid="stHeader"] div {
     [data-testid="stSidebar"] > div {
         background-color: #f1f5f9 !important;
         height: auto !important;
-        overflow: visible !important;
-        overflow-y: visible !important;
+        overflow-x: hidden !important;
     }
     
-    /* Floating circular action expand button at top-left when collapsed */
+    /* Style Streamlit's native sidebar control without forcing custom placement. */
     [data-testid="stSidebarCollapseButton"],
     button[title="Expand sidebar"],
     button[class*="CollapseButton"] {
         background-color: #ffffff !important;
         border: 1px solid #cbd5e1 !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
-        border-radius: 50% !important;
-        width: 40px !important;
-        height: 40px !important;
-        left: 20px !important;
-        top: 20px !important;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12) !important;
+        border-radius: 999px !important;
         z-index: 9999 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        position: fixed !important;
         pointer-events: auto !important;
     }
     
@@ -244,8 +206,6 @@ header[data-testid="stHeader"] div {
     button[class*="CollapseButton"] svg {
         fill: #1f5f8b !important;
         color: #1f5f8b !important;
-        width: 20px !important;
-        height: 20px !important;
     }
     
     /* Standard close/collapse button inside open sidebar */
@@ -254,10 +214,6 @@ header[data-testid="stHeader"] div {
         border: none !important;
         box-shadow: none !important;
         border-radius: 4px !important;
-        width: auto !important;
-        height: auto !important;
-        position: static !important;
-        display: inline-flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
@@ -979,8 +935,7 @@ hr { border-color: var(--divider-color) !important; }
 /* Sidebar media-query bg must also pick up theme */
 @media (min-width: 1200px) {
     [data-testid="stSidebar"],
-    section[data-testid="stSidebar"],
-    [class*="sidebar"] {
+    section[data-testid="stSidebar"] {
         background-color: var(--sidebar-bg) !important;
         border-right-color: var(--sidebar-border) !important;
     }
