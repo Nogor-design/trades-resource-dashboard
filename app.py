@@ -6,6 +6,7 @@ Streamlit 1.57+ compatible.
 Run with: streamlit run app.py
 """
 
+import hmac
 import os, sys, warnings, time
 warnings.filterwarnings("ignore")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -493,7 +494,72 @@ hr { border-color: #e2e8f0 !important; margin: 18px 0; }
 
 
 # ==============================================================================
-# 3. Session state initialization (for matching engine + notes)
+# 3. Demo login gate
+# ==============================================================================
+
+def get_demo_credentials():
+    username = os.getenv("DEMO_USERNAME") or os.getenv("TRADES_DEMO_USERNAME")
+    password = os.getenv("DEMO_PASSWORD") or os.getenv("TRADES_DEMO_PASSWORD")
+
+    try:
+        auth_secrets = st.secrets.get("auth", {})
+        username = username or auth_secrets.get("username") or st.secrets.get("DEMO_USERNAME")
+        password = password or auth_secrets.get("password") or st.secrets.get("DEMO_PASSWORD")
+    except Exception:
+        pass
+
+    return str(username or ""), str(password or "")
+
+
+def require_demo_login():
+    if st.session_state.get("demo_authenticated"):
+        return
+
+    configured_username, configured_password = get_demo_credentials()
+
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"],
+    [data-testid="stSidebarCollapsedControl"] {
+        display: none !important;
+    }
+    .block-container {
+        max-width: 520px !important;
+        padding-top: 12vh !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.title("Trades Resource Command Center")
+    st.caption("Private demo access")
+
+    if not configured_username or not configured_password:
+        st.error("Demo login is not configured yet.")
+        st.info("Add DEMO_USERNAME and DEMO_PASSWORD in Streamlit Cloud secrets, then restart the app.")
+        st.stop()
+
+    with st.form("demo_login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign in", use_container_width=True)
+
+    if submitted:
+        username_ok = hmac.compare_digest(username, configured_username)
+        password_ok = hmac.compare_digest(password, configured_password)
+        if username_ok and password_ok:
+            st.session_state.demo_authenticated = True
+            st.rerun()
+        else:
+            st.error("Invalid username or password.")
+
+    st.stop()
+
+
+require_demo_login()
+
+
+# ==============================================================================
+# 4. Session state initialization (for matching engine + notes)
 # ==============================================================================
 
 if "worker_overrides"  not in st.session_state: st.session_state.worker_overrides  = {}
@@ -1035,6 +1101,12 @@ else:
 # ==============================================================================
 
 with st.sidebar:
+    if st.button("Sign out", use_container_width=True):
+        st.session_state.demo_authenticated = False
+        st.rerun()
+
+    st.markdown("<hr style='margin:8px 0'>", unsafe_allow_html=True)
+
     # ── Theme Selector (always at the very top) ──────────────────────
     theme_labels = [THEMES[k]["label"] for k in THEMES]
     theme_keys   = list(THEMES.keys())
