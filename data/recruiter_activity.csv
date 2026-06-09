@@ -1,0 +1,36 @@
+activity_id,recruiter_name,date,activity_type,related_worker,related_client,related_position,status,next_action,due_date,notes
+ACT001,Amy Chen,2026-05-30,Offer Extended,Jason T.,Front Range Components,P014,Pending,,2026-06-07,Worker confirmed availability.
+ACT002,Sarah Mitchell,2026-05-20,Client Follow-Up,Betty Allen,Redrock Industrial Services,P012,Complete,Update position stage,2026-05-23,Worker confirmed availability.
+ACT003,Derek Williams,2026-06-01,Worker Check-In,,Front Range Components,P013,Complete,Submit resume,2026-06-08,Waiting on background check.
+ACT004,Jason Torres,2026-05-24,Worker Check-In,Margaret King,Apex Precision Manufacturing,,Complete,Update position stage,2026-05-28,Lodging confirmed for start date.
+ACT005,Sarah Mitchell,2026-05-25,Interview Scheduled,,High Plains Manufacturing,P011,In Progress,Wait for client response,2026-06-02,Email sent regarding per diem.
+ACT006,Derek Williams,2026-06-01,Interview Scheduled,Kevin Perez,Desert Sun Fabricators,P012,Pending,Check references,2026-06-01,Client reviewing resumes.
+ACT007,Jason Torres,2026-06-01,Onboarding Support,George Harris,,P007,Pending,Follow up in 3 days,2026-06-03,Good conversation.
+ACT008,Jason Torres,2026-05-26,Offer Extended,Ashley Thompson,Mesa Verde Manufacturing,P001,In Progress,Update position stage,2026-06-01,Email sent regarding per diem.
+ACT009,Derek Williams,2026-05-24,Position Review,David Anderson,,P003,Complete,Schedule interview,2026-05-19,Lodging confirmed for start date.
+ACT010,Jason Torres,2026-06-02,Interview Scheduled,Barbara Jackson,,,Complete,Schedule interview,2026-05-28,Waiting on background check.
+ACT011,Jason Torres,2026-05-25,Position Review,Betty Smith,,P010,Complete,Submit resume,2026-06-02,Client reviewing resumes.
+ACT012,Amy Chen,2026-05-17,Interview Scheduled,Jennifer Green,Western CNC Solutions,P001,Complete,,2026-05-23,Worker confirmed availability.
+ACT013,Amy Chen,2026-05-25,Offer Extended,Betty Rodriguez,,P011,Overdue,Confirm start date,2026-05-28,Email sent regarding per diem.
+ACT014,Jason Torres,2026-05-23,Onboarding Support,Timothy Sanchez,Desert Sun Fabricators,P013,Overdue,Update position stage,2026-05-22,Good conversation.
+ACT015,Amy Chen,2026-05-26,Intake Meeting,Elizabeth Wilson,Front Range Components,P011,Complete,Submit resume,2026-06-05,Worker confirmed availability.
+ACT016,Amy Chen,2026-05-25,Candidate Submission,Emily Sanchez,,,Overdue,Submit resume,2026-05-25,Waiting on background check.
+ACT017,Sarah Mitchell,2026-05-25,Interview Scheduled,Jeffrey Miller,Cascade Precision Works,,Complete,Wait for client response,2026-05-29,Client reviewing resumes.
+ACT018,Sarah Mitchell,2026-05-17,Position Review,Ryan Torres,Summit Aerospace Components,P013,Complete,Schedule interview,2026-05-21,Email sent regarding per diem.
+ACT019,Jason Torres,2026-05-31,Redeployment Call,Lisa Young,,P006,Pending,Schedule interview,2026-06-10,Good conversation.
+ACT020,Sarah Mitchell,2026-05-18,Worker Check-In,Barbara Jackson,ForgeWorks Industrial,P006,Complete,Call worker back,2026-05-15,Waiting on background check.
+ACT021,Derek Williams,2026-05-27,Intake Meeting,Betty Rodriguez,,,Complete,Submit resume,2026-06-02,Lodging confirmed for start date.
+ACT022,Jason Torres,2026-05-29,Worker Check-In,Sandra Clark,,P010,Complete,,2026-05-27,Good conversation.
+ACT023,Jason Torres,2026-05-17,Client Follow-Up,David Rodriguez,High Plains Manufacturing,P020,Complete,Schedule interview,2026-05-22,Good conversation.
+ACT024,Derek Williams,2026-05-26,Redeployment Call,Donna Davis,Cascade Precision Works,P001,Overdue,Schedule interview,2026-05-28,Email sent regarding per diem.
+ACT025,Sarah Mitchell,2026-05-21,Position Review,Jeffrey Jones,,P002,Overdue,,2026-05-24,Left voicemail.
+ACT026,Sarah Mitchell,2026-05-19,Client Follow-Up,Robert L.,,,Complete,Confirm start date,2026-05-26,Client reviewing resumes.
+ACT027,Jason Torres,2026-05-25,Interview Scheduled,Jason T.,,P017,Complete,Wait for client response,2026-05-24,Worker confirmed availability.
+ACT028,Sarah Mitchell,2026-05-27,Offer Extended,,,,Complete,Send offer letter,2026-05-30,Good conversation.
+ACT029,Derek Williams,2026-05-18,Offer Extended,,Cascade Precision Works,,Complete,Follow up in 3 days,2026-05-23,Waiting on background check.
+ACT030,Sarah Mitchell,2026-05-17,Client Follow-Up,Barbara Perez,,,Overdue,Wait for client response,2026-05-14,Good conversation.
+ACT031,Jason Torres,2026-05-28,Reference Check,Emily Thompson,,,Overdue,Submit resume,2026-05-24,Lodging confirmed for start date.
+ACT032,Amy Chen,2026-05-29,Intake Meeting,Betty Allen,Cascade Precision Works,,Complete,Update position stage,2026-05-29,Worker confirmed availability.
+ACT033,Amy Chen,2026-05-19,Client Follow-Up,Maria Green,,,Overdue,Update position stage,2026-05-22,Lodging confirmed for start date.
+ACT034,Derek Williams,2026-05-30,Candidate Submission,,Apex Precision Manufacturing,P006,Complete,Update position stage,2026-06-07,Lodging confirmed for start date.
+ACT035,Derek Williams,2026-05-18,Candidate Submission,Ryan Nguyen,Redrock Industrial Services,P005,Complete,Call worker back,2026-05-28,Client reviewing resumes.

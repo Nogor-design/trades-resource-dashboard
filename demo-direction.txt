@@ -1,0 +1,940 @@
+# Trades Resource Command Center — Developer Improvement Brief
+
+## Objective
+
+Improve the current Trades Resource Command Center demo so it is more focused, business-relevant, and client-meeting ready.
+
+The current app already has strong functionality: Owner Today View, Active Assignment Forecast, Open Orders Board, Recruiter Process Tracker, Candidate Matching, Redeployment Planning, and Submittal Packets.
+
+However, the next improvement pass should focus on making the demo clearly solve the owner’s actual pain:
+
+> The owner is currently tracking active assignments in spreadsheets, open orders on paper, recruiter workflow through a candidate spreadsheet, and many important follow-ups from memory. She wants better forecasting so she can focus more on sales.
+
+The app should feel like an **operations forecasting and workflow visibility system**, not just a polished dashboard and not just an AI demo.
+
+---
+
+# Core Business Problem
+
+Trades Resource needs a practical command center that helps the owner answer:
+
+1. Who is currently assigned?
+2. What assignments are ending soon?
+3. Which renewals or extensions need attention?
+4. Who has upcoming time off?
+5. Which open orders still need candidates?
+6. Which submitted candidates are waiting on approval?
+7. Which recruiter tasks or process steps are incomplete?
+8. What needs attention today, this week, and in the next 30/60/90 days?
+9. What can be system-tracked so the owner does not have to remember everything manually?
+
+The demo should emphasize:
+
+* Forecasting
+* Active assignment tracking
+* Renewal and extension visibility
+* Upcoming time-off visibility
+* Open order tracking
+* Candidate approval tracking
+* Recruiter process consistency
+* Required-field completion
+* Redeployment planning
+* Owner sales focus
+
+---
+
+# Main Positioning Statement
+
+The app should be framed around this idea:
+
+> “Forecasting so the owner can focus on sales.”
+
+The system should help move the business from:
+
+> Spreadsheet + paper + memory
+
+to:
+
+> One operational command center showing assignments, open orders, recruiter workflow, renewals, extensions, time off, redeployment, and upcoming action items.
+
+Avoid positioning this as “AI replacing recruiting.” The message should be:
+
+> “This helps the owner and recruiter see what needs attention before it becomes urgent.”
+
+---
+
+# Recommended First-Meeting Demo Flow
+
+Do not show every feature in the first client meeting. Focus on the four most relevant sections:
+
+1. Owner Today View
+2. Active Assignment Forecast
+3. Open Orders Board
+4. Recruiter Process Tracker
+
+Candidate Matching, Redeployment Planning, and Submittal Packets can be shown briefly as future expansion areas only if the meeting is going well.
+
+## Demo Flow
+
+### 1. Owner Today View
+
+Purpose:
+
+Show the owner exactly what needs attention today.
+
+Emphasize:
+
+* Active assignments
+* Open orders
+* Upcoming time off
+* Renewals due
+* Extensions pending
+* Assignments ending soon
+* Candidate approvals pending
+* Missing recruiter updates
+* Stuck open orders
+
+Suggested talking point:
+
+> “This is the screen that replaces memory-based tracking. It shows what needs attention today, what is coming up, and what may affect forecasting.”
+
+---
+
+### 2. Active Assignment Forecast
+
+Purpose:
+
+Show a Gantt-style timeline for all active assignments.
+
+Emphasize:
+
+* Assignment start and end dates
+* Today line
+* Assignment duration
+* Renewal markers
+* Extension markers
+* Time-off markers
+* Ending-soon alerts
+* Redeployment status
+* Forecast risk
+
+Suggested talking point:
+
+> “This helps you see what is coming before it turns into a fire.”
+
+---
+
+### 3. Open Orders Board
+
+Purpose:
+
+Replace paper tracking for jobs that need to be filled.
+
+Emphasize:
+
+* Open orders
+* Urgency
+* Recruiter owner
+* Candidate submissions
+* Candidate approval status
+* Interviews
+* Client feedback
+* Notes
+* Stuck positions
+* Next action
+
+Suggested talking point:
+
+> “This gives you one place to see every open order, who has been submitted, whether they were approved, and what needs to happen next.”
+
+---
+
+### 4. Recruiter Process Tracker
+
+Purpose:
+
+Create process consistency without making it feel like micromanagement.
+
+Emphasize:
+
+* Required fields completed
+* Missing candidate information
+* Proficiency testing status
+* Spreadsheet update status
+* Candidate submission readiness
+* Overdue follow-ups
+* Recruiter workload
+
+Suggested talking point:
+
+> “This is not meant to police the recruiter. It is meant to make the process visible and consistent so nothing gets missed.”
+
+---
+
+# Major Improvements Needed
+
+## 1. Add a “What This Solves” Section to the App or Documentation
+
+Add a simple intro section near the top of the app and documentation:
+
+### What this prototype solves
+
+This prototype is designed around four known pain points:
+
+1. Active assignments are currently tracked in spreadsheets.
+2. Open orders are currently tracked on paper and memory.
+3. Recruiter workflow is difficult to monitor consistently.
+4. Forecasting renewals, extensions, time off, and redeployment takes too much owner attention.
+
+The goal is to create one command center that shows:
+
+* Who is currently assigned
+* What is ending soon
+* What needs renewal or extension follow-up
+* Who has upcoming time off
+* Which open orders need candidates
+* Which candidates are waiting on approval
+* Which recruiter tasks are overdue
+* What the owner should focus on today
+
+---
+
+## 2. Simplify the Navigation for the Demo
+
+The current documentation references nine modular tabs, but the visible described system appears to have seven main tabs. Fix that mismatch.
+
+Recommended demo-facing navigation:
+
+1. Today
+2. Assignment Forecast
+3. Open Orders
+4. Recruiter Process
+5. Redeployment
+6. Candidate Matching
+7. Submittal Packets
+8. Data/Admin
+
+For the actual meeting, visually prioritize the first four tabs.
+
+Candidate Matching, Submittal Packets, and AI Assist should be framed as future expansion, not the core pitch.
+
+---
+
+## 3. Add a “Demo vs Production” Notice
+
+Add a clear but professional note:
+
+### Prototype Scope
+
+This is a concept prototype using demo data.
+
+It is designed to show what the workflow could look like. A production version would require:
+
+* Connecting to the company’s real spreadsheet, database, ATS, or shared files
+* Defining required fields
+* Importing current active assignments
+* Importing current open orders
+* Importing candidate/recruiter process data
+* Setting user permissions
+* Confirming alert timing
+* Adding backup/export procedures
+* Deciding where the system should live long-term
+
+This protects against overselling and makes the prototype feel credible.
+
+---
+
+## 4. Soften or Remove Risky Claims
+
+Review the app text and documentation for claims that may sound too strong for a prototype.
+
+### Change this:
+
+“Official Trades Resource Fuchsia-to-Violet Brand Gradients”
+
+### To this:
+
+“Trades Resource-inspired accent colors”
+
+---
+
+### Change this:
+
+“Real-time database visibility”
+
+### To this:
+
+“Real-time-style operational visibility using structured demo data”
+
+Or:
+
+“Designed to support real-time database visibility in a production version”
+
+---
+
+### Change this:
+
+“Persistent notes directly in session memory”
+
+### To this:
+
+“Editable notes in the prototype session; production would save notes to a database or approved shared data source”
+
+---
+
+### Remove or hide from client-facing documentation:
+
+“Twin Synchronization”
+
+The local folder synchronization details are technical and may confuse the client. Keep them in developer notes only if needed.
+
+---
+
+# Feature Improvements
+
+## 1. Add Stronger Time-Off Tracking
+
+The owner specifically said time off is hard to track. The app should treat time off as a first-class workflow, not just a marker on a chart.
+
+Add a dedicated table or dashboard section:
+
+### Upcoming Time Off
+
+Fields:
+
+* Worker name
+* Current client
+* Role
+* Time-off start date
+* Time-off end date
+* Number of days off
+* Client notified?
+* Coverage needed?
+* Recruiter owner
+* Approval status
+* Notes
+* Impact on assignment duration
+* Next action
+
+Example statuses:
+
+* Time off requested
+* Client notified
+* Coverage needed
+* Approved
+* Not approved
+* Needs follow-up
+* Impacts assignment duration
+
+Add alert rules:
+
+* Time off within 14 days and client not notified = alert
+* Time off within 7 days and coverage needed = urgent
+* Time off overlaps assignment end date = forecast risk
+* Time off status missing = data incomplete
+
+---
+
+## 2. Add Renewal and Extension Forecasting
+
+Renewals and extensions were specifically called out as a forecasting problem.
+
+Add a dedicated section:
+
+### Renewal & Extension Forecast
+
+Fields:
+
+* Worker
+* Client
+* Assignment end date
+* Renewal conversation due date
+* Extension status
+* Extension likelihood
+* Client decision needed by
+* Worker interest confirmed?
+* Forecasted revenue impact
+* Recruiter owner
+* Next action
+
+Statuses:
+
+* No action needed
+* Renewal conversation due
+* Extension pending
+* Client approved extension
+* Worker declined extension
+* Ending / redeploy
+* Forecast risk
+* Missing extension status
+
+Alert rules:
+
+* Assignment ending within 30 days and no renewal status = renewal review needed
+* Assignment ending within 14 days and extension status unknown = urgent extension follow-up
+* Assignment ending within 7 days and no decision = critical forecast risk
+* Extension approved = update projected end date
+* Worker not interested = begin redeployment
+
+This should be a major visible part of the Owner Today View and Assignment Forecast.
+
+---
+
+## 3. Add an “Owner Sales Focus” Section
+
+The owner said the biggest growth opportunity is forecasting so she can focus on sales.
+
+Add a dashboard block called:
+
+### Owner Sales Focus
+
+This should show:
+
+* Stable assignments
+* Assignments needing owner attention
+* Renewals due this week
+* Extensions pending
+* Workers available soon
+* Urgent open orders
+* Clients needing follow-up
+* Open orders ready for sales/recruiting focus
+* Operational issues that can be delegated
+
+Example table:
+
+| Category               | Count | Meaning                   |
+| ---------------------- | ----: | ------------------------- |
+| Stable Assignments     |    42 | No owner attention needed |
+| Renewals Due           |     8 | Protect existing revenue  |
+| Extensions Pending     |     5 | Client decision needed    |
+| Workers Available Soon |     9 | Redeployment opportunity  |
+| Urgent Open Orders     |     6 | Recruiting/sales priority |
+| Missing Updates        |     7 | Process issue to clean up |
+
+Suggested headline:
+
+> “This view helps the owner know what can be delegated, what needs attention, and where she can safely focus on sales.”
+
+---
+
+## 4. Improve Required Field Tracking
+
+The owner mentioned the recruiter needs to update spreadsheets in real time and fill in all fields.
+
+Add required-field completion logic for:
+
+1. Active assignments
+2. Open orders
+3. Candidate profiles
+4. Candidate submissions
+5. Recruiter activity
+
+Each record should have:
+
+* Completion percentage
+* Missing fields list
+* Status badge
+* Next required update
+
+### Active Assignment Required Fields
+
+* Worker name
+* Client
+* Role
+* Start date
+* End date
+* Recruiter owner
+* Extension status
+* Last worker check-in
+* Time-off status
+* Next action
+
+### Open Order Required Fields
+
+* Client
+* Role
+* Location
+* Shift
+* Pay range
+* Urgency
+* Required skills
+* Target start date
+* Recruiter owner
+* Candidate submitted status
+* Client approval status
+* Notes
+
+### Candidate Required Fields
+
+* Trade category
+* Core skills
+* Availability
+* Pay requirement
+* Travel preference
+* Proficiency test status
+* Certifications
+* Recruiter notes
+* Submission readiness
+
+### Submission Required Fields
+
+* Candidate name
+* Client
+* Position
+* Submission date
+* Approval status
+* Interview status
+* Client feedback
+* Next follow-up date
+
+Add data quality badges:
+
+* Complete
+* Missing Fields
+* Needs Update
+* Ready to Submit
+* Not Ready
+* Waiting on Client
+* Overdue
+
+---
+
+## 5. Add “Decision Supported” Labels to Each Screen
+
+Each page should clearly state the decision it helps the owner make.
+
+Examples:
+
+### Owner Today View
+
+Helps answer:
+
+> “What needs attention today?”
+
+### Assignment Forecast
+
+Helps answer:
+
+> “Which assignments may create revenue, staffing, or redeployment risk?”
+
+### Open Orders Board
+
+Helps answer:
+
+> “Which jobs need candidates, client follow-up, or approval?”
+
+### Recruiter Process Tracker
+
+Helps answer:
+
+> “Is the recruiting process being followed consistently?”
+
+### Redeployment Planning
+
+Helps answer:
+
+> “Which workers should be placed again before they roll off assignment?”
+
+### Candidate Matching
+
+Helps answer:
+
+> “Who is the best fit for this job order?”
+
+### Submittal Packets
+
+Helps answer:
+
+> “What should be sent to the client?”
+
+This makes the app more business-focused.
+
+---
+
+## 6. Improve Open Orders Around Candidate Approval Tracking
+
+The owner specifically said she wants:
+
+> “All open orders and notes of candidates submitted for each and if they get approved.”
+
+Make this exact workflow clear.
+
+Open Orders should show:
+
+* Open order
+* Recruiter owner
+* Candidate submitted
+* Candidate submission date
+* Candidate approval status
+* Interview status
+* Client feedback
+* Notes
+* Next action
+* Days since last update
+
+Candidate approval statuses:
+
+* Not submitted
+* Submitted
+* Waiting on client
+* Approved
+* Rejected
+* Interview scheduled
+* Offer pending
+* Filled
+
+Alert rules:
+
+* Candidate submitted more than 3 days ago and no client response = follow-up needed
+* Open order has no submitted candidates = sourcing needed
+* Candidate approved but no interview scheduled = schedule interview
+* Interview complete but no result = update needed
+* Candidate rejected and no replacement submitted = source replacement
+
+---
+
+## 7. Add Stronger Redeployment Workflow
+
+Redeployment should not only show people ending soon. It should show the action path.
+
+Redeployment statuses:
+
+* Not Started
+* Worker Contacted
+* Interested
+* Not Interested
+* Extension Possible
+* Matched to Open Order
+* Submitted
+* Waiting on Client
+* Redeployed
+* Not Available
+* Follow Up Later
+
+Redeployment fields:
+
+* Current worker
+* Current client
+* Current role
+* Assignment end date
+* Availability date
+* Worker interest confirmed?
+* Preferred location/state
+* Possible next open order
+* Recruiter owner
+* Redeployment status
+* Next action
+* Forecast risk
+
+Alert rules:
+
+* Ending within 30 days and redeployment not started = start planning
+* Ending within 14 days and worker not contacted = contact worker
+* Ending within 7 days and no extension or redeployment plan = critical
+* Worker available soon and matching open order exists = review match
+* No open match = sales/recruiting opportunity
+
+---
+
+# Production Planning Section
+
+Add a section to the documentation and possibly the app called:
+
+## What We Would Need From Trades Resource
+
+To convert this prototype into a working internal tool, we would need:
+
+1. Current active assignment spreadsheet
+2. Current open orders list
+3. Candidate/recruiter process spreadsheet
+4. Technical job intake document
+5. Current proficiency testing process
+6. Required fields for candidates and job orders
+7. Current reporting needs
+8. Desired alert timing for renewals, extensions, time off, and follow-ups
+9. Existing tools currently used, such as spreadsheets, email, ATS, CRM, calendar, or accounting system
+10. Decision on where the system should live long-term
+
+---
+
+# Success Metrics
+
+Add success metrics to show how value would be measured.
+
+Possible metrics:
+
+* Fewer missed renewal conversations
+* Fewer missed extension decisions
+* Fewer assignments ending without a redeployment plan
+* Better visibility into upcoming time off
+* Less paper tracking for open orders
+* Fewer incomplete candidate records
+* Faster candidate submissions
+* Faster client follow-up
+* Better recruiter update compliance
+* Less manual reporting
+* More owner time spent on sales
+* Better forecasting of active assignments and available workers
+
+---
+
+# Non-Goals
+
+Add this section to build trust:
+
+## What this system is not trying to do
+
+This system is not intended to replace recruiter judgment.
+
+It is not intended to replace client relationships.
+
+It is not intended to fully automate recruiting.
+
+It is not intended to monitor employees in a punitive way.
+
+It is not intended to force the company into a complicated software platform before the process is clear.
+
+The goal is to create visibility, consistency, forecasting, and better follow-through.
+
+---
+
+# Roadmap
+
+Add a phased roadmap so the client can see how this grows.
+
+## Phase 1 — Visibility
+
+* Active assignment tracking
+* Open order tracking
+* Upcoming action dashboard
+* Assignment forecast timeline
+* Recruiter process tracker
+* Basic CSV/spreadsheet import
+
+## Phase 2 — Workflow Consistency
+
+* Structured client intake
+* Required fields
+* Candidate profile completion
+* Proficiency testing workflow
+* Candidate submission workflow
+* Follow-up reminders
+* Open order update rules
+
+## Phase 3 — Forecasting
+
+* Renewal forecast
+* Extension forecast
+* Time-off forecast
+* Redeployment forecast
+* Available worker forecast
+* Open order demand forecast
+
+## Phase 4 — Decision Support
+
+* Candidate matching
+* Redeployment suggestions
+* Submittal packet generation
+* Sales focus recommendations
+* Client opportunity tracking
+* AI summaries where useful
+
+---
+
+# App Improvements Checklist
+
+Please review and implement the following improvements:
+
+## Documentation Cleanup
+
+* Fix mismatch between nine tabs and currently described tabs.
+* Add “What this solves” section.
+* Add “Prototype Scope” section.
+* Add “What We Would Need From Trades Resource” section.
+* Add success metrics.
+* Add non-goals.
+* Add roadmap.
+* Remove or hide confusing local technical details from client-facing docs.
+* Soften any claims that sound like finished production features.
+
+## UI/UX Improvements
+
+* Add decision-supported label to each page.
+* Add clearer business-focused page descriptions.
+* Make Owner Today View the main landing page.
+* Add Owner Sales Focus section.
+* Add Renewal & Extension Forecast section.
+* Add Upcoming Time Off section.
+* Keep demo navigation simple.
+* Make first four tabs visually primary.
+
+## Data Model Improvements
+
+Add or confirm the following fields exist.
+
+### Assignments
+
+* assignment_id
+* worker_id
+* worker_name
+* client_name
+* role
+* trade_category
+* recruiter_owner
+* start_date
+* original_end_date
+* projected_end_date
+* duration_days
+* extension_status
+* extension_likelihood
+* renewal_due_date
+* client_decision_needed_by
+* worker_interest_confirmed
+* time_off_start
+* time_off_end
+* time_off_status
+* client_notified_of_time_off
+* coverage_needed
+* last_worker_check_in
+* last_client_contact
+* redeployment_status
+* forecast_status
+* next_action
+* notes
+
+### Open Orders
+
+* order_id
+* client_name
+* role
+* trade_category
+* location
+* state
+* urgency
+* recruiter_owner
+* date_opened
+* target_start_date
+* required_skills
+* shift
+* pay_range
+* intake_complete
+* candidates_submitted_count
+* candidate_submitted_names
+* submission_dates
+* candidate_approval_status
+* interview_status
+* client_feedback
+* days_since_last_update
+* stage
+* stuck_flag
+* next_action
+* notes
+
+### Candidates / Workers
+
+* worker_id
+* worker_name
+* trade_category
+* primary_trade
+* core_skills
+* certifications
+* proficiency_test_status
+* availability_date
+* pay_requirement
+* travel_preference
+* preferred_states
+* shift_preference
+* recruiter_owner
+* profile_completion_score
+* missing_fields
+* submission_readiness
+* last_contact
+* notes
+
+### Recruiter Activity
+
+* activity_id
+* recruiter_name
+* activity_date
+* activity_type
+* related_worker
+* related_client
+* related_order
+* status
+* due_date
+* completed_date
+* next_action
+* notes
+
+---
+
+# Business Rules to Implement
+
+## Assignment Forecast Rules
+
+* Assignment ending within 30 days and no renewal status = renewal review needed
+* Assignment ending within 14 days and extension status unknown = urgent extension follow-up
+* Assignment ending within 7 days and no decision = critical forecast risk
+* Assignment past projected end date and no redeployment = critical
+* Worker not checked in within 14 days = check-in needed
+* Client not contacted within 7 days near end date = client follow-up needed
+
+## Time-Off Rules
+
+* Time off within 14 days and client not notified = alert
+* Time off within 7 days and coverage needed = urgent
+* Time off overlaps assignment end date = forecast risk
+* Time off status missing = incomplete data
+
+## Open Order Rules
+
+* Intake incomplete = stuck
+* No candidates submitted = sourcing needed
+* Open more than 7 days with no candidates submitted = stuck
+* Candidate submitted more than 3 days ago with no client response = follow-up needed
+* Target start date within 7 days and not filled = urgent
+* Candidate approved but no interview scheduled = schedule interview
+* Interview complete but no result = update needed
+
+## Recruiter Process Rules
+
+* Required fields missing = data completion needed
+* Proficiency test missing = testing needed
+* Spreadsheet/data not updated recently = update needed
+* Follow-up overdue = overdue task
+* Candidate submitted but no approval status = client response needed
+* Interview scheduled but no result = update interview result
+
+## Redeployment Rules
+
+* Assignment ending within 30 days and redeployment not started = start redeployment planning
+* Assignment ending within 14 days and worker not contacted = contact worker
+* Assignment ending within 7 days and no extension/redeployment plan = critical
+* Worker available soon and matching open order exists = review match
+* No open match = possible sales/recruiting opportunity
+
+---
+
+# Acceptance Criteria
+
+The improvement pass is complete when:
+
+1. The app clearly communicates that it solves spreadsheet/paper/memory-based tracking.
+2. Owner Today View is the primary landing page.
+3. The demo can be presented in four main sections: Today, Assignment Forecast, Open Orders, Recruiter Process.
+4. The app includes explicit renewal and extension forecasting.
+5. The app includes explicit upcoming time-off tracking.
+6. The app includes open order candidate approval tracking.
+7. The app includes required-field and missing-data tracking.
+8. The app includes recruiter workflow visibility without sounding punitive.
+9. The app includes a clear Prototype Scope / Demo Data disclaimer.
+10. The app includes a phased roadmap.
+11. The app includes success metrics.
+12. Confusing local technical details are removed from client-facing documentation.
+13. Risky production-sounding claims are softened.
+14. Candidate Matching and AI Assist are framed as optional/future enhancements, not the core value.
+15. The client can quickly understand: “This helps me forecast and focus on sales.”
+
+---
+
+

@@ -1,0 +1,16 @@
+client_id,client_name,industry,location,state,active_assignments,open_positions,last_contact,account_status,notes
+C01,Apex Precision Manufacturing,Aerospace & Defense,Denver,CO,2,0,2026-05-12,Warm,Outstanding invoice review pending.
+C02,Mountain Tool & Die,Tooling & Machining,Colorado Springs,CO,4,3,2026-05-22,New,Key account focusing on traveling CNC talent.
+C03,ForgeWorks Industrial,Heavy Manufacturing,Pueblo,CO,2,1,2026-05-17,New,Requires lodging assistance for travelers.
+C04,Summit Aerospace Components,Aerospace & Defense,Aurora,CO,5,2,2026-05-12,Warm,Outstanding invoice review pending.
+C05,Rocky Mountain Fabrication,Metal Fabrication,Longmont,CO,7,0,2026-05-22,Warm,Strong direct-hire relationship.
+C06,Prime Motion Systems,Industrial Equipment,Fort Collins,CO,3,3,2026-05-27,Warm,Key account focusing on traveling CNC talent.
+C07,Western CNC Solutions,Precision Machining,Albuquerque,NM,9,3,2026-05-13,New,Outstanding invoice review pending.
+C08,High Plains Manufacturing,Agricultural Equipment,Amarillo,TX,4,1,2026-05-11,New,Increasing headcount for aerospace surge.
+C09,Titan Industrial Group,Oil & Gas Equipment,Midland,TX,5,1,2026-05-26,Warm,Increasing headcount for aerospace surge.
+C10,Front Range Components,Precision Machining,Boulder,CO,2,2,2026-05-24,Active,Increasing headcount for aerospace surge.
+C11,Mesa Verde Manufacturing,Automotive Parts,Grand Junction,CO,2,1,2026-05-25,Active,Requires lodging assistance for travelers.
+C12,Pikes Peak Precision,Defense & Aerospace,Colorado Springs,CO,1,2,2026-05-27,Warm,Increasing headcount for aerospace surge.
+C13,Desert Sun Fabricators,Solar & Energy,Phoenix,AZ,10,0,2026-05-25,New,Strong direct-hire relationship.
+C14,Redrock Industrial Services,Mining & Extraction,Salt Lake City,UT,2,0,2026-05-19,Active,Key account focusing on traveling CNC talent.
+C15,Cascade Precision Works,Precision Machining,Boise,ID,2,1,2026-05-17,New,Requires lodging assistance for travelers.
