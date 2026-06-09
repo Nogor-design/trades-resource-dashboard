@@ -212,6 +212,7 @@ def _load_roster(data_dir: Path, diagnostics: list[dict[str, str]]) -> dict[str,
             "recruiter_owner": "Unassigned",
             "start_date": start_date,
             "end_date": end_date,
+            "days_remaining": days_remaining,
             "status": "Active",
             "last_worker_contact": pd.NaT,
             "last_client_contact": pd.NaT,
@@ -539,6 +540,215 @@ def _build_timecard_blueprint(intake_questions: pd.DataFrame) -> pd.DataFrame:
             })
 
     return pd.DataFrame(rows)
+
+
+def _trade_to_primary_trade(value: Any) -> str:
+    trade = _clean(value)
+    if trade == "CNC":
+        return "CNC Machinist"
+    if trade == "Welding":
+        return "Welder/Fabricator"
+    if trade == "Maintenance":
+        return "Maintenance Tech"
+    return trade or "Skilled Trades"
+
+
+def _candidate_fields_complete(row: pd.Series) -> bool:
+    required = [
+        "application_status", "proficiency_testing", "interview_completed",
+        "references_completed", "profile_completed",
+    ]
+    return all(_status_is_yes(row.get(field)) for field in required)
+
+
+def _customer_candidates_to_workers(candidates: pd.DataFrame, assignments: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+
+    if not candidates.empty:
+        for _, row in candidates.iterrows():
+            name = _clean(row.get("candidate_name"))
+            if not name:
+                continue
+            primary_trade = _clean(row.get("primary_trade")) or "Skilled Trades"
+            trade_category = _infer_trade(primary_trade)
+            fields_complete = _candidate_fields_complete(row)
+            score = row.get("best_test_percent")
+            score_text = _clean(row.get("best_test_score"))
+            rows.append({
+                "worker_id": _clean(row.get("candidate_id")) or _stable_id("REAL-CAND", name),
+                "worker_name": name,
+                "primary_trade": primary_trade,
+                "trade_category": trade_category,
+                "home_state": "",
+                "skills": primary_trade,
+                "certifications": "",
+                "machine_brands": "",
+                "controls": "",
+                "materials_experience": "",
+                "industry_experience": "",
+                "cnc_mill_experience": trade_category == "CNC",
+                "five_axis_experience": False,
+                "setup_ability": False,
+                "preferred_locations": "",
+                "preferred_region": "",
+                "preferred_states": "",
+                "willing_to_travel": False,
+                "shift_preference": "Any",
+                "prior_assignment_rating": 0,
+                "availability_date": pd.NaT,
+                "current_assignment_id": "",
+                "recruiter_owner": _clean(row.get("recruiter_owner")) or "Unassigned",
+                "last_contact": pd.NaT,
+                "redeployment_status": "Available",
+                "missing_information_flags": ", ".join(field for field in [
+                    "Application" if not _status_is_yes(row.get("application_status")) else "",
+                    "Testing" if not _status_is_yes(row.get("proficiency_testing")) else "",
+                    "Interview" if not _status_is_yes(row.get("interview_completed")) else "",
+                    "References" if not _status_is_yes(row.get("references_completed")) else "",
+                    "Profile" if not _status_is_yes(row.get("profile_completed")) else "",
+                ] if field),
+                "recruiter_notes": "; ".join(part for part in [
+                    _clean(row.get("notes")),
+                    _clean(row.get("action_item")),
+                    f"Best test: {score_text}" if score_text else "",
+                ] if part),
+                "status": "Available",
+                "notes": _clean(row.get("joe_update")) or _clean(row.get("laura_follow_up")),
+                "candidate_fields_complete": fields_complete,
+                "missing_fields": ", ".join(field for field in [
+                    "Application" if not _status_is_yes(row.get("application_status")) else "",
+                    "Proficiency Testing" if not _status_is_yes(row.get("proficiency_testing")) else "",
+                    "Interview" if not _status_is_yes(row.get("interview_completed")) else "",
+                    "References" if not _status_is_yes(row.get("references_completed")) else "",
+                    "Profile" if not _status_is_yes(row.get("profile_completed")) else "",
+                ] if field),
+                "proficiency_test_status": "Complete" if _status_is_yes(row.get("proficiency_testing")) else "Pending Proficiency",
+                "proficiency_test_score": score,
+                "spreadsheet_updated": True,
+                "last_update_timestamp": pd.NaT,
+                "process_status": _clean(row.get("process_status")) or "Needs update",
+            })
+
+    existing_names = {_candidate_key(row["worker_name"]) for row in rows if row.get("worker_name")}
+    if not assignments.empty:
+        for _, row in assignments.iterrows():
+            name = _clean(row.get("worker_name"))
+            if not name or _candidate_key(name) in existing_names:
+                continue
+            rows.append({
+                "worker_id": _clean(row.get("worker_id")) or _stable_id("REAL-W", name),
+                "worker_name": name,
+                "primary_trade": _trade_to_primary_trade(row.get("trade_category")),
+                "trade_category": _clean(row.get("trade_category")) or _infer_trade(row.get("role")),
+                "home_state": _clean(row.get("state")),
+                "skills": _clean(row.get("role")),
+                "certifications": "",
+                "machine_brands": "",
+                "controls": "",
+                "materials_experience": "",
+                "industry_experience": "",
+                "cnc_mill_experience": _clean(row.get("trade_category")) == "CNC",
+                "five_axis_experience": False,
+                "setup_ability": False,
+                "preferred_locations": _clean(row.get("location")),
+                "preferred_region": "",
+                "preferred_states": _clean(row.get("state")),
+                "willing_to_travel": False,
+                "shift_preference": "Any",
+                "prior_assignment_rating": 0,
+                "availability_date": row.get("end_date"),
+                "current_assignment_id": _clean(row.get("assignment_id")),
+                "recruiter_owner": _clean(row.get("recruiter_owner")) or "Unassigned",
+                "last_contact": pd.NaT,
+                "redeployment_status": _clean(row.get("redeployment_status")) or "Not Started",
+                "missing_information_flags": "Candidate profile not imported",
+                "recruiter_notes": _clean(row.get("notes")),
+                "status": "Active",
+                "notes": _clean(row.get("notes")),
+                "candidate_fields_complete": False,
+                "missing_fields": "Candidate profile",
+                "proficiency_test_status": "Unknown",
+                "proficiency_test_score": None,
+                "spreadsheet_updated": False,
+                "last_update_timestamp": pd.NaT,
+                "process_status": "Needs update",
+            })
+
+    return pd.DataFrame(rows)
+
+
+def _customer_clients(assignments: pd.DataFrame, positions: pd.DataFrame) -> pd.DataFrame:
+    names = sorted(set(
+        assignments.get("client_name", pd.Series(dtype=str)).dropna().map(_clean).tolist()
+        + positions.get("client_name", pd.Series(dtype=str)).dropna().map(_clean).tolist()
+    ))
+    rows = []
+    for name in [n for n in names if n]:
+        rows.append({
+            "client_id": _stable_id("REAL-CL", name),
+            "client_name": name,
+            "industry": "",
+            "location": "",
+            "state": "",
+            "active_assignments": int((assignments.get("client_name", pd.Series(dtype=str)).map(_clean) == name).sum()) if not assignments.empty else 0,
+            "open_positions": int((positions.get("client_name", pd.Series(dtype=str)).map(_clean) == name).sum()) if not positions.empty else 0,
+            "last_contact": pd.NaT,
+            "account_status": "Active",
+            "notes": "Imported from customer roster",
+        })
+    return pd.DataFrame(rows)
+
+
+def build_customer_dashboard_data(preview: dict[str, Any]) -> dict[str, pd.DataFrame] | None:
+    tables = preview.get("tables", {})
+    assignments = tables.get("customer_assignments", pd.DataFrame()).copy()
+    positions = tables.get("customer_open_positions", pd.DataFrame()).copy()
+    candidates = tables.get("customer_candidates", pd.DataFrame()).copy()
+
+    if assignments.empty and positions.empty and candidates.empty:
+        return None
+
+    workers = _customer_candidates_to_workers(candidates, assignments)
+    clients = _customer_clients(assignments, positions)
+    recruiter_activity = pd.DataFrame(columns=[
+        "activity_id", "recruiter_name", "date", "activity_type", "related_worker",
+        "related_client", "related_position", "status", "next_action", "due_date", "notes",
+    ])
+    job_orders = positions.rename(columns={
+        "position_id": "job_order_id",
+        "state": "client_state",
+        "location": "client_city",
+        "priority": "urgency",
+        "notes": "client_notes",
+        "date_opened": "created_date",
+    }).copy() if not positions.empty else pd.DataFrame()
+
+    if not job_orders.empty:
+        job_orders["client_industry"] = ""
+        job_orders["quantity"] = 1
+        job_orders["contract_length_months"] = ""
+        job_orders["machine_type"] = ""
+        job_orders["required_skills"] = job_orders.get("role", "")
+        job_orders["preferred_skills"] = ""
+        job_orders["machine_brands_preferred"] = ""
+        job_orders["controls_preferred"] = ""
+        job_orders["materials_required"] = ""
+        job_orders["industry_experience_preferred"] = ""
+        job_orders["start_window_days"] = ""
+        job_orders["travel_required"] = False
+        job_orders["pay_range_optional"] = job_orders.get("pay_range", "")
+        job_orders["per_diem_required"] = ""
+        job_orders["compliance_requirements"] = ""
+        job_orders["status"] = job_orders.get("stage", "")
+
+    return {
+        "assignments": assignments,
+        "workers": workers,
+        "open_positions": positions,
+        "recruiter_activity": recruiter_activity,
+        "clients": clients,
+        "job_orders": job_orders,
+    }
 
 
 def load_customer_import_preview(data_dir: str | os.PathLike[str] = DATA_DIR) -> dict[str, Any]:

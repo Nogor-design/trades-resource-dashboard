@@ -16,7 +16,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from src.data_loader import load_all
-from src.customer_imports import load_customer_import_preview
+from src.customer_imports import build_customer_dashboard_data, load_customer_import_preview
 from src import rules, charts, components
 
 # New matching-engine modules
@@ -578,6 +578,7 @@ if "demo_sent_emails"   not in st.session_state: st.session_state.demo_sent_emai
 if "demo_sent_sms"      not in st.session_state: st.session_state.demo_sent_sms      = []
 if "app_theme"          not in st.session_state: st.session_state.app_theme          = "Light Corporate"
 if "presentation_mode"  not in st.session_state: st.session_state.presentation_mode  = "Client Demo Mode"
+if "data_source"        not in st.session_state: st.session_state.data_source        = "Customer Imports"
 
 
 # ==============================================================================
@@ -1051,14 +1052,26 @@ def get_customer_preview():
 with st.spinner("Loading data..."):
     D = get_data()
     CUSTOMER_PREVIEW = get_customer_preview()
+    CUSTOMER_DASHBOARD_DATA = build_customer_dashboard_data(CUSTOMER_PREVIEW)
+
+if st.session_state.data_source == "Customer Imports" and CUSTOMER_DASHBOARD_DATA is not None:
+    D = CUSTOMER_DASHBOARD_DATA
+    ACTIVE_DATA_SOURCE = "Customer Imports"
+else:
+    ACTIVE_DATA_SOURCE = "Demo Data"
 
 asgn       = D["assignments"]
 workers    = D["workers"]
 pos        = D["open_positions"]
 act        = D["recruiter_activity"]
 clients    = D["clients"]
-workload   = D["workload"]
-alerts     = D["alerts"]
+asgn       = rules.apply_assignment_urgency(asgn)
+asgn       = rules.apply_worker_flags(asgn)
+asgn       = rules.apply_recommended_actions(asgn)
+pos        = rules.apply_position_flags(pos)
+act        = rules.apply_activity_flags(act)
+workload   = rules.compute_recruiter_workload(asgn, pos, act)
+alerts     = rules.build_alerts(asgn, pos, act, workers)
 job_orders = D.get("job_orders", pd.DataFrame())
 TODAY      = pd.Timestamp.now().normalize()
 
@@ -1129,6 +1142,22 @@ with st.sidebar:
         st.session_state.app_theme = chosen_key
         st.rerun()
 
+    customer_ready = CUSTOMER_DASHBOARD_DATA is not None
+    data_options = ["Customer Imports", "Demo Data"] if customer_ready else ["Demo Data"]
+    if st.session_state.data_source not in data_options:
+        st.session_state.data_source = data_options[0]
+    data_source = st.radio(
+        "Data Source",
+        data_options,
+        index=data_options.index(st.session_state.data_source),
+        key="data_source",
+        help="Customer Imports uses the local customer spreadsheets/PDF in the data folder. Demo Data uses the generated CSV dataset.",
+    )
+    if data_source == "Customer Imports":
+        st.caption("Main dashboard is populated from the imported customer files.")
+    else:
+        st.caption("Main dashboard is populated from generated demo CSVs.")
+
     mode = st.radio(
         "Demo Navigation",
         ["Client Demo Mode", "Full Prototype Mode"],
@@ -1144,8 +1173,9 @@ with st.sidebar:
     )
 
     st.markdown("<hr style='margin:8px 0'>", unsafe_allow_html=True)
+    source_badge = "CUSTOMER IMPORTS" if ACTIVE_DATA_SOURCE == "Customer Imports" else "DEMO DATA"
 
-    st.markdown("""
+    st.markdown(f"""
     <div style="text-align:center;padding:12px 0 8px 0;">
         <div style="font-size:2.2rem;">⚙️</div>
         <div style="font-size:1.15rem;font-weight:800;background:var(--accent-grad, linear-gradient(90deg, #1b5f8b 0%, #0e7fb5 100%));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.3;">
@@ -1161,7 +1191,7 @@ with st.sidebar:
         <div style="margin-top:8px;display:inline-block;background:#FEF3C7;
              border:1px solid #FDE68A;border-radius:4px;padding:2px 10px;
              font-size:0.68rem;color:#92400E;font-weight:700;letter-spacing:1px;">
-            ⚠ PROTOTYPE — DEMO DATA ONLY
+            PROTOTYPE - {source_badge}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1415,13 +1445,18 @@ with tab1:
     )
 
     # ── Prototype disclaimer ──────────────────────────────────────────────────
-    st.markdown("""
+    source_note_title = "Customer Import Preview" if ACTIVE_DATA_SOURCE == "Customer Imports" else "Demo Data Only"
+    source_note_body = (
+        "This local view is populated from the customer files in the data folder. Review mappings before using this as production truth."
+        if ACTIVE_DATA_SOURCE == "Customer Imports"
+        else "This concept prototype uses generated demo data to show what the workflow could look like. A production version would connect to your real spreadsheets, database, or existing tools."
+    )
+    st.markdown(f"""
     <div style="background:#FEF9EC;border:1px solid #FDE68A;border-left:5px solid #F59E0B;
          border-radius:8px;padding:12px 18px;margin-bottom:12px;">
-        <span style="font-weight:700;color:#92400E;font-size:0.88rem;">⚠ PROTOTYPE — Demo Data Only</span>
+        <span style="font-weight:700;color:#92400E;font-size:0.88rem;">PROTOTYPE - {source_note_title}</span>
         <span style="color:#78350F;font-size:0.84rem;margin-left:8px;">
-        This concept prototype uses generated demo data to show what the workflow could look like.
-        A production version would connect to your real spreadsheets, database, or existing tools.
+        {source_note_body}
         </span>
     </div>
     """, unsafe_allow_html=True)
