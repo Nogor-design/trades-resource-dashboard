@@ -21,10 +21,12 @@ from src.customer_imports import build_customer_dashboard_data, load_customer_im
 from src.import_review import build_import_review
 from src.session_manager import (
     ALLOWED_UPLOAD_EXTENSIONS,
+    add_customer_feedback,
     clear_customer_runtime_state,
     ensure_runtime_session,
     find_review_code,
     purge_expired_sessions,
+    read_customer_feedback,
     register_review_code,
     reset_runtime_session,
     runtime_summary,
@@ -1404,6 +1406,65 @@ with st.sidebar:
                 f"{import_summary.get('open_positions', 0)} open orders, "
                 f"{import_summary.get('candidates', 0)} candidates."
             )
+        if session_info.get("feedback_count"):
+            st.caption(
+                f"Feedback received: {session_info['feedback_count']} item(s)"
+                + (f" (latest {session_info['latest_feedback_at']})" if session_info.get("latest_feedback_at") else "")
+            )
+        can_leave_feedback = ACTIVE_DATA_SOURCE == "Uploaded Customer Data" or bool(active_review_code)
+        with st.form("customer_review_feedback_form", clear_on_submit=True):
+            st.markdown("**Leave Review Feedback**")
+            feedback_name = st.text_input(
+                "Your name",
+                value="",
+                placeholder="Optional",
+                key="customer_feedback_name",
+            )
+            feedback_area = st.selectbox(
+                "Feedback area",
+                [
+                    "Overall demo",
+                    "Data accuracy",
+                    "Missing information",
+                    "Workflow fit",
+                    "Priority feature",
+                    "Security or access",
+                    "Other",
+                ],
+                key="customer_feedback_area",
+            )
+            feedback_priority = st.selectbox(
+                "Priority",
+                ["Normal", "High", "Question", "Nice to have"],
+                key="customer_feedback_priority",
+            )
+            feedback_text = st.text_area(
+                "Feedback",
+                placeholder="What looks right, what is missing, or what should change?",
+                key="customer_feedback_text",
+                height=110,
+            )
+            submitted_feedback = st.form_submit_button(
+                "Submit Feedback",
+                use_container_width=True,
+                disabled=not can_leave_feedback,
+            )
+        if submitted_feedback:
+            if not feedback_text.strip():
+                st.warning("Add a feedback note before submitting.")
+            else:
+                add_customer_feedback(
+                    st.session_state.upload_session_id,
+                    feedback_name,
+                    feedback_area,
+                    feedback_priority,
+                    feedback_text,
+                    active_review_code,
+                )
+                st.session_state.customer_session_notice = "Feedback saved for this review session."
+                st.rerun()
+        if not can_leave_feedback:
+            st.caption("Feedback is enabled after uploaded customer data or a prepared review is active.")
         review_code_entry = st.text_input(
             "Review code",
             value="",
@@ -3288,6 +3349,26 @@ with tab8:
                 if current_review_code:
                     st.success(f"Current review code: {current_review_code}")
                     st.code(public_review_link(current_review_code), language="text")
+
+            feedback_rows = read_customer_feedback(st.session_state.upload_session_id)
+            if OWNER_ADMIN_MODE:
+                st.markdown("**Customer Review Feedback**")
+                if feedback_rows:
+                    feedback_df = pd.DataFrame(feedback_rows)
+                    feedback_cols = [
+                        "timestamp",
+                        "review_code",
+                        "reviewer",
+                        "area",
+                        "priority",
+                        "feedback",
+                    ]
+                    feedback_show = feedback_df[[c for c in feedback_cols if c in feedback_df.columns]]
+                    st.caption(f"{len(feedback_show)} feedback item(s) submitted for this runtime session.")
+                    st.dataframe(feedback_show, width="stretch", hide_index=True)
+                    components.csv_download_button(feedback_show, "customer_review_feedback.csv", "Download customer feedback")
+                else:
+                    st.info("No customer feedback has been submitted for this runtime session yet.")
 
             st.warning(
                 "Customer import previews may include private names, phone numbers, emails, and client details. "

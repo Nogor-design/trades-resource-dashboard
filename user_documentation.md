@@ -288,6 +288,11 @@ upload replacement controls are hidden for non-admin users so the prepared data
 does not get purged accidentally. The review still expires based on
 `CUSTOMER_SESSION_TTL_HOURS`.
 
+The sidebar also includes a **Leave Review Feedback** form once uploaded
+customer data is active. Customer feedback is saved with the temporary runtime
+review session. Owner/admin users can review and download those notes from
+**Data / Admin > Customer Imports**.
+
 ---
 
 ## Frequently Asked Questions

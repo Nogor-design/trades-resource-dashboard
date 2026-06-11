@@ -93,6 +93,7 @@ def session_paths(session_id: str) -> dict[str, Path]:
         "exports": EXPORT_DIR / session_id,
         "manifest": RUNTIME_DIR / session_id / "manifest.json",
         "audit": RUNTIME_DIR / session_id / "audit.jsonl",
+        "feedback": RUNTIME_DIR / session_id / "feedback.jsonl",
     }
 
 
@@ -250,6 +251,55 @@ def append_audit_event(session_id: str, event: str, details: dict[str, Any] | No
         fh.write(json.dumps(payload) + "\n")
 
 
+def add_customer_feedback(
+    session_id: str,
+    reviewer: str,
+    area: str,
+    priority: str,
+    feedback: str,
+    review_code: str = "",
+) -> dict[str, Any]:
+    session_id = safe_session_id(session_id)
+    paths = session_paths(session_id)
+    paths["session"].mkdir(parents=True, exist_ok=True)
+    payload = {
+        "feedback_id": uuid.uuid4().hex[:12],
+        "timestamp": utc_now_iso(),
+        "session_id": session_id,
+        "review_code": safe_review_code(review_code),
+        "reviewer": str(reviewer or "").strip()[:120],
+        "area": str(area or "").strip()[:80],
+        "priority": str(priority or "").strip()[:40],
+        "feedback": str(feedback or "").strip()[:4000],
+    }
+    with paths["feedback"].open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(payload) + "\n")
+    append_audit_event(session_id, "customer_feedback_added", {
+        "feedback_id": payload["feedback_id"],
+        "area": payload["area"],
+        "priority": payload["priority"],
+        "review_code_present": bool(payload["review_code"]),
+    })
+    return payload
+
+
+def read_customer_feedback(session_id: str) -> list[dict[str, Any]]:
+    feedback_path = session_paths(session_id)["feedback"]
+    if not feedback_path.exists():
+        return []
+    rows = []
+    for line in feedback_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            rows.append(payload)
+    return rows
+
+
 def save_uploaded_files(session_id: str, uploaded_files: list[Any], label: str = "") -> dict[str, Any]:
     paths = session_paths(session_id)
     paths["raw"].mkdir(parents=True, exist_ok=True)
@@ -396,6 +446,8 @@ def reset_runtime_session(session_id: str, state: Any | None = None) -> None:
         shutil.rmtree(paths[key], ignore_errors=True)
     if paths["manifest"].exists():
         paths["manifest"].unlink()
+    if paths["feedback"].exists():
+        paths["feedback"].unlink()
     if state is not None:
         clear_customer_runtime_state(state)
         state["upload_session_id"] = safe_session_id()
@@ -406,6 +458,7 @@ def runtime_summary(session_id: str, ttl_hours: float = DEFAULT_SESSION_TTL_HOUR
     uploads = list_raw_uploads(session_id)
     manifest = read_manifest(session_id)
     expiration = session_expiration(session_id, ttl_hours)
+    feedback = read_customer_feedback(session_id)
     return {
         "session_id": session_id,
         "label": manifest.get("label", ""),
@@ -417,6 +470,8 @@ def runtime_summary(session_id: str, ttl_hours: float = DEFAULT_SESSION_TTL_HOUR
         "is_expired": expiration.get("is_expired", False),
         "hours_until_expiry": expiration.get("hours_until_expiry"),
         "import_summary": manifest.get("import_summary", {}),
+        "feedback_count": len(feedback),
+        "latest_feedback_at": feedback[-1].get("timestamp", "") if feedback else "",
         "file_count": len(uploads),
         "total_bytes": sum(path.stat().st_size for path in uploads),
         "files": [path.name for path in uploads],

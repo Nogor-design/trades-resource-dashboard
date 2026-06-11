@@ -21,6 +21,11 @@ or an app link with `?review=CODE`. The customer-facing app can load that code
 without enabling owner/admin tools, and reset/upload replacement controls stay
 hidden while the prepared review is active.
 
+Customers can leave review feedback from the **Customer Data Session** panel
+while uploaded data is active. Feedback is stored with the same temporary runtime
+session and can be reviewed or downloaded from **Data / Admin > Customer
+Imports** in owner/admin mode.
+
 For owner-only local development, ignored files in `data/` can be previewed by
 starting the app with both `ENABLE_OWNER_ADMIN_TOOLS=true` and
 `ENABLE_LOCAL_CUSTOMER_FILES=true`.
