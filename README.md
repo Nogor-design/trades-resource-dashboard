@@ -15,6 +15,12 @@ safe demo data for the next user.
 Customer upload sessions expire automatically after 24 hours by default. Set
 `CUSTOMER_SESSION_TTL_HOURS` to adjust that window for a hosted deployment.
 
+Owner/admin users can prepare a customer review ahead of time by uploading the
+files, creating a prepared review code, and sending the customer either the code
+or an app link with `?review=CODE`. The customer-facing app can load that code
+without enabling owner/admin tools, and reset/upload replacement controls stay
+hidden while the prepared review is active.
+
 For owner-only local development, ignored files in `data/` can be previewed by
 starting the app with both `ENABLE_OWNER_ADMIN_TOOLS=true` and
 `ENABLE_LOCAL_CUSTOMER_FILES=true`.
@@ -54,6 +60,22 @@ $env:ENABLE_OWNER_ADMIN_TOOLS = "true"
 ```
 
 Leave `ENABLE_OWNER_ADMIN_TOOLS` unset for customer-facing hosted sessions.
+
+For hosted demos where you want generated review links to include the full app
+URL, set:
+
+```toml
+PUBLIC_APP_URL = "https://trades-command-center.streamlit.app"
+```
+
+Without `PUBLIC_APP_URL`, the app still shows the code and a `?review=CODE`
+suffix that can be appended to the hosted app URL.
+
+Use `streamlit_secrets.example.toml` as the safe deployment template. Keep the
+existing `DEMO_USERNAME` and `DEMO_PASSWORD` secrets in Streamlit Cloud. Set
+`ENABLE_OWNER_ADMIN_TOOLS = "true"` only while preparing the uploaded customer
+review, then set it back to `"false"` before sending the customer the review
+link.
 
 The Customer Imports review recognizes common renamed exports such as roster/open
 orders workbooks, main candidate trackers, available-candidate CSVs, CNC/welder

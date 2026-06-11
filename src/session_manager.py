@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import shutil
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 RUNTIME_DIR = ROOT_DIR / "runtime_sessions"
 UPLOAD_DIR = ROOT_DIR / "runtime_uploads"
 EXPORT_DIR = ROOT_DIR / "runtime_exports"
+REVIEW_INDEX_FILE = RUNTIME_DIR / "review_index.json"
 DEFAULT_SESSION_TTL_HOURS = 24.0
 
 ALLOWED_UPLOAD_EXTENSIONS = {".csv", ".pdf", ".xls", ".xlsx", ".xlsm"}
@@ -35,6 +37,7 @@ CUSTOMER_SESSION_STATE_KEYS = [
     "demo_sent_sms",
     "customer_upload_manifest",
     "customer_upload_last_saved",
+    "active_review_code",
 ]
 
 
@@ -58,6 +61,21 @@ def safe_session_id(value: str | None = None) -> str:
     if value and re.fullmatch(r"[a-zA-Z0-9_-]{8,80}", value):
         return value
     return uuid.uuid4().hex[:12]
+
+
+def safe_review_code(value: str | None = None) -> str:
+    if not value:
+        return ""
+    cleaned = re.sub(r"[^A-Za-z0-9-]+", "-", value.upper()).strip("-")
+    cleaned = re.sub(r"-{2,}", "-", cleaned)
+    return cleaned[:48]
+
+
+def generate_review_code(label: str = "") -> str:
+    prefix = safe_review_code(label)[:12].strip("-") or "TR"
+    token = secrets.token_urlsafe(6).upper().replace("_", "").replace("-", "")
+    token = re.sub(r"[^A-Z0-9]+", "", token)[:8] or uuid.uuid4().hex[:8].upper()
+    return safe_review_code(f"{prefix}-{token}")
 
 
 def safe_filename(name: str) -> str:
@@ -110,6 +128,114 @@ def write_manifest(session_id: str, manifest: dict[str, Any]) -> None:
     paths = session_paths(session_id)
     paths["session"].mkdir(parents=True, exist_ok=True)
     paths["manifest"].write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def read_review_index() -> dict[str, Any]:
+    if not REVIEW_INDEX_FILE.exists():
+        return {"reviews": {}}
+    try:
+        payload = json.loads(REVIEW_INDEX_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {"reviews": {}}
+    if not isinstance(payload, dict):
+        return {"reviews": {}}
+    reviews = payload.get("reviews", {})
+    if not isinstance(reviews, dict):
+        reviews = {}
+    return {"reviews": reviews}
+
+
+def write_review_index(index: dict[str, Any]) -> None:
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    REVIEW_INDEX_FILE.write_text(json.dumps(index, indent=2), encoding="utf-8")
+
+
+def remove_review_codes_for_session(session_id: str) -> None:
+    index = read_review_index()
+    reviews = index.get("reviews", {})
+    keep = {
+        code: record
+        for code, record in reviews.items()
+        if record.get("session_id") != session_id
+    }
+    if keep != reviews:
+        index["reviews"] = keep
+        write_review_index(index)
+
+
+def register_review_code(session_id: str, label: str = "", requested_code: str | None = None) -> dict[str, Any]:
+    session_id = safe_session_id(session_id)
+    code = safe_review_code(requested_code) or generate_review_code(label)
+    paths = session_paths(session_id)
+    paths["session"].mkdir(parents=True, exist_ok=True)
+
+    manifest = read_manifest(session_id)
+    now = utc_now_iso()
+    if not manifest:
+        manifest = {
+            "session_id": session_id,
+            "label": label.strip(),
+            "created_at": now,
+            "updated_at": now,
+            "raw_dir": str(paths["raw"]),
+            "saved_files": [],
+            "rejected_files": [],
+        }
+
+    remove_review_codes_for_session(session_id)
+    index = read_review_index()
+    reviews = index.get("reviews", {})
+    existing = reviews.get(code)
+    if existing and existing.get("session_id") != session_id:
+        code = generate_review_code(label)
+
+    label_value = label.strip() or manifest.get("label", "") or "Customer review"
+    record = {
+        "code": code,
+        "session_id": session_id,
+        "label": label_value,
+        "created_at": reviews.get(code, {}).get("created_at") or now,
+        "updated_at": now,
+    }
+    reviews[code] = record
+    index["reviews"] = reviews
+    write_review_index(index)
+
+    manifest["review_code"] = code
+    manifest["review_label"] = label_value
+    manifest["updated_at"] = now
+    if label_value and not manifest.get("label"):
+        manifest["label"] = label_value
+    write_manifest(session_id, manifest)
+    append_audit_event(session_id, "review_code_registered", {"code": code})
+    return record
+
+
+def find_review_code(code: str, ttl_hours: float = DEFAULT_SESSION_TTL_HOURS) -> dict[str, Any] | None:
+    code = safe_review_code(code)
+    if not code:
+        return None
+    index = read_review_index()
+    record = index.get("reviews", {}).get(code)
+    if not record:
+        return None
+    session_id = safe_session_id(record.get("session_id"))
+    manifest = read_manifest(session_id)
+    if not manifest or session_is_expired(session_id, ttl_hours):
+        return None
+    uploads = list_raw_uploads(session_id)
+    if not uploads:
+        return None
+    expiration = session_expiration(session_id, ttl_hours)
+    return {
+        **record,
+        "code": code,
+        "session_id": session_id,
+        "label": record.get("label") or manifest.get("label", ""),
+        "expires_at": expiration.get("expires_at", ""),
+        "hours_until_expiry": expiration.get("hours_until_expiry"),
+        "file_count": len(uploads),
+    }
 
 
 def append_audit_event(session_id: str, event: str, details: dict[str, Any] | None = None) -> None:
@@ -231,6 +357,7 @@ def purge_expired_sessions(ttl_hours: float = DEFAULT_SESSION_TTL_HOURS) -> int:
             continue
         session_id = session_dir.name
         if session_is_expired(session_id, ttl_hours):
+            remove_review_codes_for_session(session_id)
             for target in (
                 session_paths(session_id)["raw"],
                 session_paths(session_id)["normalized"],
@@ -264,6 +391,7 @@ def clear_customer_runtime_state(state: Any) -> None:
 def reset_runtime_session(session_id: str, state: Any | None = None) -> None:
     paths = session_paths(session_id)
     append_audit_event(session_id, "reset_requested", {})
+    remove_review_codes_for_session(session_id)
     for key in ("raw", "normalized", "exports"):
         shutil.rmtree(paths[key], ignore_errors=True)
     if paths["manifest"].exists():
@@ -283,6 +411,8 @@ def runtime_summary(session_id: str, ttl_hours: float = DEFAULT_SESSION_TTL_HOUR
         "label": manifest.get("label", ""),
         "created_at": manifest.get("created_at", ""),
         "updated_at": manifest.get("updated_at", ""),
+        "review_code": manifest.get("review_code", ""),
+        "review_label": manifest.get("review_label", ""),
         "expires_at": expiration.get("expires_at", ""),
         "is_expired": expiration.get("is_expired", False),
         "hours_until_expiry": expiration.get("hours_until_expiry"),

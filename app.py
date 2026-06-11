@@ -23,10 +23,14 @@ from src.session_manager import (
     ALLOWED_UPLOAD_EXTENSIONS,
     clear_customer_runtime_state,
     ensure_runtime_session,
+    find_review_code,
     purge_expired_sessions,
+    register_review_code,
     reset_runtime_session,
     runtime_summary,
     save_uploaded_files,
+    safe_review_code,
+    safe_session_id,
     session_is_expired,
     session_paths,
     update_manifest_import_summary,
@@ -512,8 +516,21 @@ hr { border-color: #e2e8f0 !important; margin: 18px 0; }
 # 3. Demo login gate
 # ==============================================================================
 
-def env_flag(name: str, default: bool = False) -> bool:
+def runtime_setting(name: str, default: str | None = None) -> str | None:
     value = os.getenv(name)
+    if value is not None:
+        return value
+    try:
+        secret_value = st.secrets.get(name)
+    except Exception:
+        secret_value = None
+    if secret_value is None:
+        return default
+    return str(secret_value)
+
+
+def env_flag(name: str, default: bool = False) -> bool:
+    value = runtime_setting(name)
     if value is None:
         return default
     return value.strip().lower() in ("1", "true", "yes", "on")
@@ -524,8 +541,8 @@ def login_bypass_enabled() -> bool:
 
 
 def get_demo_credentials():
-    username = os.getenv("DEMO_USERNAME") or os.getenv("TRADES_DEMO_USERNAME")
-    password = os.getenv("DEMO_PASSWORD") or os.getenv("TRADES_DEMO_PASSWORD")
+    username = runtime_setting("DEMO_USERNAME") or runtime_setting("TRADES_DEMO_USERNAME")
+    password = runtime_setting("DEMO_PASSWORD") or runtime_setting("TRADES_DEMO_PASSWORD")
 
     try:
         auth_secrets = st.secrets.get("auth", {})
@@ -613,6 +630,7 @@ if "demo_sent_sms"      not in st.session_state: st.session_state.demo_sent_sms 
 if "app_theme"          not in st.session_state: st.session_state.app_theme          = "Light Corporate"
 if "presentation_mode"  not in st.session_state: st.session_state.presentation_mode  = "Client Demo Mode"
 if "data_source"        not in st.session_state: st.session_state.data_source        = "Demo Data"
+if "active_review_code" not in st.session_state: st.session_state.active_review_code = ""
 if not OWNER_ADMIN_MODE and st.session_state.presentation_mode != "Client Demo Mode":
     st.session_state.presentation_mode = "Client Demo Mode"
 if not OWNER_ADMIN_MODE and st.session_state.data_source == "Local Customer Files":
@@ -628,6 +646,55 @@ if session_is_expired(UPLOAD_SESSION_ID, CUSTOMER_SESSION_TTL_HOURS):
     st.session_state.customer_session_notice = "Previous customer upload session expired and was reset to demo data."
     st.cache_data.clear()
     st.rerun()
+
+
+def current_review_query_code() -> str:
+    try:
+        value = st.query_params.get("review", "")
+    except Exception:
+        return ""
+    if isinstance(value, list):
+        value = value[0] if value else ""
+    return safe_review_code(str(value or ""))
+
+
+def clear_review_query_param() -> None:
+    try:
+        if "review" in st.query_params:
+            del st.query_params["review"]
+    except Exception:
+        pass
+
+
+def public_review_link(code: str) -> str:
+    code = safe_review_code(code)
+    public_url = runtime_setting("PUBLIC_APP_URL") or runtime_setting("TRADES_PUBLIC_APP_URL")
+    if public_url:
+        return f"{public_url.rstrip('/')}?review={code}"
+    return f"?review={code}"
+
+
+def load_prepared_review(code: str, *, notice_prefix: str = "Loaded prepared customer review") -> bool:
+    code = safe_review_code(code)
+    review = find_review_code(code, CUSTOMER_SESSION_TTL_HOURS)
+    if not review:
+        st.session_state.customer_session_notice = "Review code was not found, has no uploaded files, or has expired."
+        return False
+
+    clear_customer_runtime_state(st.session_state)
+    st.session_state.upload_session_id = review["session_id"]
+    st.session_state.active_review_code = review["code"]
+    st.session_state.data_source = "Uploaded Customer Data"
+    st.session_state.presentation_mode = "Client Demo Mode"
+    st.session_state.customer_session_notice = f"{notice_prefix}: {review['label'] or review['code']}."
+    st.cache_data.clear()
+    return True
+
+
+query_review_code = current_review_query_code()
+if query_review_code and st.session_state.get("active_review_code") != query_review_code:
+    if load_prepared_review(query_review_code, notice_prefix="Loaded review link"):
+        st.rerun()
 
 
 # ==============================================================================
@@ -1310,10 +1377,15 @@ with st.sidebar:
 
     session_info = runtime_summary(st.session_state.upload_session_id, CUSTOMER_SESSION_TTL_HOURS)
     with st.expander("Customer Data Session", expanded=False):
+        active_review_code = safe_review_code(st.session_state.get("active_review_code", ""))
+        shared_review_locked = bool(active_review_code) and not OWNER_ADMIN_MODE
         label = session_info.get("label") or st.session_state.upload_session_id
         st.caption(f"Active source: {ACTIVE_DATA_SOURCE}")
         st.caption(f"Session: {label}")
         st.caption(f"Uploaded files: {session_info['file_count']}")
+        if active_review_code:
+            st.success(f"Prepared review loaded: {active_review_code}")
+            st.caption(f"Review link: {public_review_link(active_review_code)}")
         if session_info["updated_at"]:
             st.caption(f"Last upload: {session_info['updated_at']}")
         if session_info["expires_at"]:
@@ -1332,32 +1404,74 @@ with st.sidebar:
                 f"{import_summary.get('open_positions', 0)} open orders, "
                 f"{import_summary.get('candidates', 0)} candidates."
             )
-        sidebar_label = st.text_input(
-            "Upload label",
-            value=session_info.get("label", ""),
-            placeholder="Customer review",
-            key="sidebar_customer_upload_label",
+        review_code_entry = st.text_input(
+            "Review code",
+            value="",
+            placeholder="Example: TR-AB12CD34",
+            key="sidebar_review_code_entry",
         )
-        sidebar_uploads = st.file_uploader(
-            "Upload files",
-            type=sorted(ext.lstrip(".") for ext in ALLOWED_UPLOAD_EXTENSIONS),
-            accept_multiple_files=True,
-            key="sidebar_customer_data_uploader",
-        )
-        if st.button("Save And Use Uploaded Data", use_container_width=True, disabled=not sidebar_uploads):
-            manifest = save_uploaded_files(st.session_state.upload_session_id, sidebar_uploads, sidebar_label)
-            st.session_state.customer_upload_manifest = manifest
-            st.session_state.customer_upload_last_saved = manifest.get("updated_at")
-            st.cache_data.clear()
-            if manifest.get("saved_files"):
-                st.session_state.data_source = "Uploaded Customer Data"
-            st.rerun()
-        confirm_reset = st.checkbox("Confirm reset and purge uploaded customer files", key="confirm_customer_reset")
-        if st.button("Reset This Session", use_container_width=True, disabled=not confirm_reset):
-            reset_runtime_session(st.session_state.upload_session_id, st.session_state)
-            st.cache_data.clear()
-            st.success("Customer session reset. Returning to demo data.")
-            st.rerun()
+        if st.button("Load Review Code", use_container_width=True, disabled=not safe_review_code(review_code_entry)):
+            if load_prepared_review(review_code_entry):
+                st.rerun()
+        if shared_review_locked:
+            st.info("This is a prepared review session. Reset and upload replacement controls are owner/admin only.")
+            if st.button("Start Separate Upload Session", use_container_width=True):
+                clear_customer_runtime_state(st.session_state)
+                st.session_state.upload_session_id = safe_session_id()
+                st.session_state.active_review_code = ""
+                ensure_runtime_session(st.session_state)
+                clear_review_query_param()
+                st.cache_data.clear()
+                st.rerun()
+        else:
+            sidebar_label = st.text_input(
+                "Upload label",
+                value=session_info.get("label", ""),
+                placeholder="Customer review",
+                key="sidebar_customer_upload_label",
+            )
+            sidebar_uploads = st.file_uploader(
+                "Upload files",
+                type=sorted(ext.lstrip(".") for ext in ALLOWED_UPLOAD_EXTENSIONS),
+                accept_multiple_files=True,
+                key="sidebar_customer_data_uploader",
+            )
+            if st.button("Save And Use Uploaded Data", use_container_width=True, disabled=not sidebar_uploads):
+                manifest = save_uploaded_files(st.session_state.upload_session_id, sidebar_uploads, sidebar_label)
+                st.session_state.customer_upload_manifest = manifest
+                st.session_state.customer_upload_last_saved = manifest.get("updated_at")
+                st.session_state.active_review_code = ""
+                clear_review_query_param()
+                st.cache_data.clear()
+                if manifest.get("saved_files"):
+                    st.session_state.data_source = "Uploaded Customer Data"
+                st.rerun()
+            if OWNER_ADMIN_MODE:
+                requested_review_code = st.text_input(
+                    "Optional prepared review code",
+                    value=session_info.get("review_code", ""),
+                    placeholder="Leave blank to generate",
+                    key="sidebar_requested_review_code",
+                )
+                if st.button("Create Or Update Review Code", use_container_width=True, disabled=session_info["file_count"] == 0):
+                    review = register_review_code(
+                        st.session_state.upload_session_id,
+                        sidebar_label,
+                        requested_review_code,
+                    )
+                    st.session_state.active_review_code = review["code"]
+                    st.session_state.customer_session_notice = (
+                        f"Prepared review code ready: {review['code']} ({public_review_link(review['code'])})"
+                    )
+                    st.cache_data.clear()
+                    st.rerun()
+            confirm_reset = st.checkbox("Confirm reset and purge uploaded customer files", key="confirm_customer_reset")
+            if st.button("Reset This Session", use_container_width=True, disabled=not confirm_reset):
+                reset_runtime_session(st.session_state.upload_session_id, st.session_state)
+                clear_review_query_param()
+                st.cache_data.clear()
+                st.success("Customer session reset. Returning to demo data.")
+                st.rerun()
         if OWNER_ADMIN_MODE and st.button("Purge Expired Sessions", use_container_width=True):
             purged = purge_expired_sessions(CUSTOMER_SESSION_TTL_HOURS)
             st.cache_data.clear()
@@ -3113,6 +3227,8 @@ with tab8:
                     manifest = save_uploaded_files(st.session_state.upload_session_id, uploaded_files, upload_label)
                     st.session_state.customer_upload_manifest = manifest
                     st.session_state.customer_upload_last_saved = manifest.get("updated_at")
+                    st.session_state.active_review_code = ""
+                    clear_review_query_param()
                     st.cache_data.clear()
                     if manifest.get("saved_files"):
                         st.session_state.data_source = "Uploaded Customer Data"
@@ -3124,6 +3240,7 @@ with tab8:
             with up_col3:
                 if st.button("Use Demo Data", use_container_width=True):
                     clear_customer_runtime_state(st.session_state)
+                    clear_review_query_param()
                     st.cache_data.clear()
                     st.rerun()
 
@@ -3139,6 +3256,38 @@ with tab8:
                 )
             else:
                 st.info("No files have been uploaded for this runtime session yet.")
+
+            if OWNER_ADMIN_MODE:
+                st.markdown("**Prepared Customer Review Code**")
+                st.caption(
+                    "Create a code after the upload looks right. The customer can enter the code in the sidebar "
+                    "or open the review link later while the runtime session is still active."
+                )
+                current_review_code = safe_review_code(upload_info.get("review_code", ""))
+                prep_col1, prep_col2 = st.columns([2, 1])
+                with prep_col1:
+                    admin_requested_review_code = st.text_input(
+                        "Optional code",
+                        value=current_review_code,
+                        placeholder="Leave blank to generate",
+                        key="admin_requested_review_code",
+                    )
+                with prep_col2:
+                    if st.button("Create Review Code", use_container_width=True, disabled=upload_info["file_count"] == 0):
+                        review = register_review_code(
+                            st.session_state.upload_session_id,
+                            upload_label,
+                            admin_requested_review_code,
+                        )
+                        st.session_state.active_review_code = review["code"]
+                        st.session_state.customer_session_notice = (
+                            f"Prepared review code ready: {review['code']} ({public_review_link(review['code'])})"
+                        )
+                        st.cache_data.clear()
+                        st.rerun()
+                if current_review_code:
+                    st.success(f"Current review code: {current_review_code}")
+                    st.code(public_review_link(current_review_code), language="text")
 
             st.warning(
                 "Customer import previews may include private names, phone numbers, emails, and client details. "

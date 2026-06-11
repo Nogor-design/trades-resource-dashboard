@@ -270,6 +270,24 @@ to generated demo data before another user opens it.
 Upload sessions expire automatically after 24 hours by default. The sidebar
 shows the active session, uploaded file count, and expiration status.
 
+## Prepared Review Codes
+
+For an async customer demo, owner/admin mode can prepare the review before the
+customer is available:
+
+1. Start the hosted app with owner/admin tools enabled.
+2. Upload the customer's roster, candidate tracker, test exports, and intake PDF.
+3. Open **Data / Admin > Customer Imports** and confirm the file recognition and
+   import review look right.
+4. Create a prepared review code.
+5. Send the customer the code, or send the hosted app URL with `?review=CODE`.
+
+The customer-facing session can load the prepared review code from the sidebar
+without seeing owner/admin tools. While a prepared review is active, reset and
+upload replacement controls are hidden for non-admin users so the prepared data
+does not get purged accidentally. The review still expires based on
+`CUSTOMER_SESSION_TTL_HOURS`.
+
 ---
 
 ## Frequently Asked Questions
