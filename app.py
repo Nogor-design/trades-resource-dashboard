@@ -16,7 +16,21 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from src.data_loader import load_all
+from src.customer_imports import DATA_DIR as CUSTOMER_IMPORT_DATA_DIR
 from src.customer_imports import build_customer_dashboard_data, load_customer_import_preview
+from src.import_review import build_import_review
+from src.session_manager import (
+    ALLOWED_UPLOAD_EXTENSIONS,
+    clear_customer_runtime_state,
+    ensure_runtime_session,
+    purge_expired_sessions,
+    reset_runtime_session,
+    runtime_summary,
+    save_uploaded_files,
+    session_is_expired,
+    session_paths,
+    update_manifest_import_summary,
+)
 from src import rules, charts, components
 
 # New matching-engine modules
@@ -498,6 +512,17 @@ hr { border-color: #e2e8f0 !important; margin: 18px 0; }
 # 3. Demo login gate
 # ==============================================================================
 
+def env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def login_bypass_enabled() -> bool:
+    return env_flag("BYPASS_DEMO_LOGIN") or env_flag("TRADES_BYPASS_DEMO_LOGIN")
+
+
 def get_demo_credentials():
     username = os.getenv("DEMO_USERNAME") or os.getenv("TRADES_DEMO_USERNAME")
     password = os.getenv("DEMO_PASSWORD") or os.getenv("TRADES_DEMO_PASSWORD")
@@ -513,6 +538,13 @@ def get_demo_credentials():
 
 
 def require_demo_login():
+    if login_bypass_enabled():
+        st.session_state.demo_authenticated = True
+        st.session_state.demo_auth_bypassed = True
+        return
+
+    st.session_state.demo_auth_bypassed = False
+
     if st.session_state.get("demo_authenticated"):
         return
 
@@ -563,6 +595,8 @@ require_demo_login()
 # 4. Session state initialization (for matching engine + notes)
 # ==============================================================================
 
+OWNER_ADMIN_MODE = env_flag("ENABLE_OWNER_ADMIN_TOOLS") or env_flag("TRADES_OWNER_ADMIN")
+
 if "worker_overrides"  not in st.session_state: st.session_state.worker_overrides  = {}
 if "position_overrides" not in st.session_state: st.session_state.position_overrides = {}
 if "worker_notes"      not in st.session_state: st.session_state.worker_notes      = []
@@ -578,7 +612,22 @@ if "demo_sent_emails"   not in st.session_state: st.session_state.demo_sent_emai
 if "demo_sent_sms"      not in st.session_state: st.session_state.demo_sent_sms      = []
 if "app_theme"          not in st.session_state: st.session_state.app_theme          = "Light Corporate"
 if "presentation_mode"  not in st.session_state: st.session_state.presentation_mode  = "Client Demo Mode"
-if "data_source"        not in st.session_state: st.session_state.data_source        = "Customer Imports"
+if "data_source"        not in st.session_state: st.session_state.data_source        = "Demo Data"
+if not OWNER_ADMIN_MODE and st.session_state.presentation_mode != "Client Demo Mode":
+    st.session_state.presentation_mode = "Client Demo Mode"
+if not OWNER_ADMIN_MODE and st.session_state.data_source == "Local Customer Files":
+    st.session_state.data_source = "Demo Data"
+
+UPLOAD_SESSION_ID = ensure_runtime_session(st.session_state)
+try:
+    CUSTOMER_SESSION_TTL_HOURS = float(os.getenv("CUSTOMER_SESSION_TTL_HOURS", "24"))
+except ValueError:
+    CUSTOMER_SESSION_TTL_HOURS = 24.0
+if session_is_expired(UPLOAD_SESSION_ID, CUSTOMER_SESSION_TTL_HOURS):
+    reset_runtime_session(UPLOAD_SESSION_ID, st.session_state)
+    st.session_state.customer_session_notice = "Previous customer upload session expired and was reset to demo data."
+    st.cache_data.clear()
+    st.rerun()
 
 
 # ==============================================================================
@@ -1046,19 +1095,101 @@ def get_data():
 
 
 @st.cache_data(ttl=300)
-def get_customer_preview():
-    return load_customer_import_preview()
+def get_customer_preview(data_dir: str):
+    return load_customer_import_preview(data_dir)
+
+
+def preview_has_loaded_sources(preview: dict) -> bool:
+    return bool(preview.get("summary", {}).get("loaded_sources", 0))
+
+
+def empty_customer_preview() -> dict:
+    return {"summary": {"loaded_sources": 0}, "tables": {}, "diagnostics": []}
+
+
+ENABLE_LOCAL_CUSTOMER_FILES = OWNER_ADMIN_MODE and env_flag("ENABLE_LOCAL_CUSTOMER_FILES")
+
+
+def build_deployment_readiness() -> pd.DataFrame:
+    configured_username, configured_password = get_demo_credentials()
+    runtime_paths = session_paths(st.session_state.upload_session_id)
+    rows = [
+        {
+            "check": "Login bypass",
+            "status": "Review before deploy" if login_bypass_enabled() else "Ready",
+            "detail": "BYPASS_DEMO_LOGIN is enabled." if login_bypass_enabled() else "Password gate is required.",
+        },
+        {
+            "check": "Demo credentials",
+            "status": "Ready" if configured_username and configured_password else "Missing",
+            "detail": "DEMO_USERNAME/DEMO_PASSWORD are configured." if configured_username and configured_password else "Set demo credentials before hosted deployment.",
+        },
+        {
+            "check": "Owner/admin tools",
+            "status": "Internal only" if OWNER_ADMIN_MODE else "Ready",
+            "detail": "ENABLE_OWNER_ADMIN_TOOLS is enabled." if OWNER_ADMIN_MODE else "Customer sessions cannot see full prototype/admin tools.",
+        },
+        {
+            "check": "Local customer files",
+            "status": "Internal only" if ENABLE_LOCAL_CUSTOMER_FILES else "Ready",
+            "detail": "Local ignored data folder preview is enabled." if ENABLE_LOCAL_CUSTOMER_FILES else "Only runtime uploads and demo data are available.",
+        },
+        {
+            "check": "Upload session TTL",
+            "status": "Ready" if CUSTOMER_SESSION_TTL_HOURS > 0 else "Review",
+            "detail": f"Customer upload sessions expire after {CUSTOMER_SESSION_TTL_HOURS:g} hour(s).",
+        },
+        {
+            "check": "Runtime folders",
+            "status": "Ready" if runtime_paths["raw"].exists() and runtime_paths["session"].exists() else "Missing",
+            "detail": f"Upload folder: {runtime_paths['raw']}",
+        },
+        {
+            "check": "Active source",
+            "status": "Ready",
+            "detail": ACTIVE_DATA_SOURCE,
+        },
+    ]
+    return pd.DataFrame(rows)
 
 with st.spinner("Loading data..."):
     D = get_data()
-    CUSTOMER_PREVIEW = get_customer_preview()
-    CUSTOMER_DASHBOARD_DATA = build_customer_dashboard_data(CUSTOMER_PREVIEW)
+    SESSION_PATHS = session_paths(st.session_state.upload_session_id)
+    UPLOADED_CUSTOMER_PREVIEW = get_customer_preview(str(SESSION_PATHS["raw"]))
+    UPLOADED_CUSTOMER_DASHBOARD_DATA = build_customer_dashboard_data(UPLOADED_CUSTOMER_PREVIEW)
+    LOCAL_CUSTOMER_PREVIEW = (
+        get_customer_preview(str(CUSTOMER_IMPORT_DATA_DIR))
+        if ENABLE_LOCAL_CUSTOMER_FILES else empty_customer_preview()
+    )
+    LOCAL_CUSTOMER_DASHBOARD_DATA = build_customer_dashboard_data(LOCAL_CUSTOMER_PREVIEW)
 
-if st.session_state.data_source == "Customer Imports" and CUSTOMER_DASHBOARD_DATA is not None:
-    D = CUSTOMER_DASHBOARD_DATA
-    ACTIVE_DATA_SOURCE = "Customer Imports"
+UPLOADED_CUSTOMER_READY = UPLOADED_CUSTOMER_DASHBOARD_DATA is not None
+LOCAL_CUSTOMER_READY = LOCAL_CUSTOMER_DASHBOARD_DATA is not None
+
+if st.session_state.data_source == "Uploaded Customer Data" and UPLOADED_CUSTOMER_READY:
+    D = UPLOADED_CUSTOMER_DASHBOARD_DATA
+    CUSTOMER_PREVIEW = UPLOADED_CUSTOMER_PREVIEW
+    CUSTOMER_DASHBOARD_DATA = UPLOADED_CUSTOMER_DASHBOARD_DATA
+    ACTIVE_DATA_SOURCE = "Uploaded Customer Data"
+elif st.session_state.data_source == "Local Customer Files" and LOCAL_CUSTOMER_READY:
+    D = LOCAL_CUSTOMER_DASHBOARD_DATA
+    CUSTOMER_PREVIEW = LOCAL_CUSTOMER_PREVIEW
+    CUSTOMER_DASHBOARD_DATA = LOCAL_CUSTOMER_DASHBOARD_DATA
+    ACTIVE_DATA_SOURCE = "Local Customer Files"
 else:
+    CUSTOMER_PREVIEW = UPLOADED_CUSTOMER_PREVIEW if preview_has_loaded_sources(UPLOADED_CUSTOMER_PREVIEW) else LOCAL_CUSTOMER_PREVIEW
+    CUSTOMER_DASHBOARD_DATA = UPLOADED_CUSTOMER_DASHBOARD_DATA or LOCAL_CUSTOMER_DASHBOARD_DATA
     ACTIVE_DATA_SOURCE = "Demo Data"
+    st.session_state.data_source = "Demo Data"
+
+CUSTOMER_IMPORT_REVIEW = build_import_review(CUSTOMER_PREVIEW)
+if preview_has_loaded_sources(UPLOADED_CUSTOMER_PREVIEW):
+    UPLOADED_CUSTOMER_IMPORT_REVIEW = build_import_review(UPLOADED_CUSTOMER_PREVIEW)
+    update_manifest_import_summary(
+        st.session_state.upload_session_id,
+        UPLOADED_CUSTOMER_PREVIEW,
+        UPLOADED_CUSTOMER_IMPORT_REVIEW,
+    )
 
 asgn       = D["assignments"]
 workers    = D["workers"]
@@ -1121,6 +1252,11 @@ else:
 # ==============================================================================
 
 with st.sidebar:
+    if st.session_state.get("demo_auth_bypassed"):
+        st.warning("Login bypass is active. Disable BYPASS_DEMO_LOGIN before deployment.")
+    if OWNER_ADMIN_MODE:
+        st.info("Owner/admin tools are enabled for this session.")
+
     if st.button("Sign out", use_container_width=True):
         st.session_state.demo_authenticated = False
         st.rerun()
@@ -1142,29 +1278,119 @@ with st.sidebar:
         st.session_state.app_theme = chosen_key
         st.rerun()
 
-    customer_ready = CUSTOMER_DASHBOARD_DATA is not None
-    data_options = ["Customer Imports", "Demo Data"] if customer_ready else ["Demo Data"]
+    data_options = ["Demo Data"]
+    if UPLOADED_CUSTOMER_READY:
+        data_options.insert(0, "Uploaded Customer Data")
+    if ENABLE_LOCAL_CUSTOMER_FILES and LOCAL_CUSTOMER_READY:
+        data_options.append("Local Customer Files")
     if st.session_state.data_source not in data_options:
-        st.session_state.data_source = data_options[0]
+        st.session_state.data_source = "Uploaded Customer Data" if UPLOADED_CUSTOMER_READY else "Demo Data"
+    if st.session_state.get("data_source_selector") != st.session_state.data_source:
+        st.session_state.data_source_selector = st.session_state.data_source
     data_source = st.radio(
         "Data Source",
         data_options,
         index=data_options.index(st.session_state.data_source),
-        key="data_source",
-        help="Customer Imports uses the local customer spreadsheets/PDF in the data folder. Demo Data uses the generated CSV dataset.",
+        key="data_source_selector",
+        help="Uploaded Customer Data is isolated to this runtime session. Demo Data is the safe generated dataset.",
     )
-    if data_source == "Customer Imports":
-        st.caption("Main dashboard is populated from the imported customer files.")
+    if data_source != st.session_state.data_source:
+        st.session_state.data_source = data_source
+        st.rerun()
+    if data_source == "Uploaded Customer Data":
+        st.caption("Main dashboard is populated from this session's uploaded files.")
+    elif data_source == "Local Customer Files":
+        st.caption("Owner/admin fallback using ignored local files in the data folder.")
     else:
         st.caption("Main dashboard is populated from generated demo CSVs.")
 
+    if st.session_state.get("customer_session_notice"):
+        st.info(st.session_state.customer_session_notice)
+        del st.session_state.customer_session_notice
+
+    session_info = runtime_summary(st.session_state.upload_session_id, CUSTOMER_SESSION_TTL_HOURS)
+    with st.expander("Customer Data Session", expanded=False):
+        label = session_info.get("label") or st.session_state.upload_session_id
+        st.caption(f"Active source: {ACTIVE_DATA_SOURCE}")
+        st.caption(f"Session: {label}")
+        st.caption(f"Uploaded files: {session_info['file_count']}")
+        if session_info["updated_at"]:
+            st.caption(f"Last upload: {session_info['updated_at']}")
+        if session_info["expires_at"]:
+            remaining = session_info.get("hours_until_expiry")
+            if session_info.get("is_expired"):
+                st.error("This uploaded-data session is expired and will reset on refresh.")
+            elif remaining is not None and remaining <= 2:
+                st.warning(f"Upload session expires in about {remaining} hour(s).")
+            else:
+                st.caption(f"Session expires: {session_info['expires_at']}")
+        import_summary = session_info.get("import_summary", {})
+        if import_summary:
+            st.caption(
+                "Imported rows: "
+                f"{import_summary.get('assignments', 0)} assignments, "
+                f"{import_summary.get('open_positions', 0)} open orders, "
+                f"{import_summary.get('candidates', 0)} candidates."
+            )
+        sidebar_label = st.text_input(
+            "Upload label",
+            value=session_info.get("label", ""),
+            placeholder="Customer review",
+            key="sidebar_customer_upload_label",
+        )
+        sidebar_uploads = st.file_uploader(
+            "Upload files",
+            type=sorted(ext.lstrip(".") for ext in ALLOWED_UPLOAD_EXTENSIONS),
+            accept_multiple_files=True,
+            key="sidebar_customer_data_uploader",
+        )
+        if st.button("Save And Use Uploaded Data", use_container_width=True, disabled=not sidebar_uploads):
+            manifest = save_uploaded_files(st.session_state.upload_session_id, sidebar_uploads, sidebar_label)
+            st.session_state.customer_upload_manifest = manifest
+            st.session_state.customer_upload_last_saved = manifest.get("updated_at")
+            st.cache_data.clear()
+            if manifest.get("saved_files"):
+                st.session_state.data_source = "Uploaded Customer Data"
+            st.rerun()
+        confirm_reset = st.checkbox("Confirm reset and purge uploaded customer files", key="confirm_customer_reset")
+        if st.button("Reset This Session", use_container_width=True, disabled=not confirm_reset):
+            reset_runtime_session(st.session_state.upload_session_id, st.session_state)
+            st.cache_data.clear()
+            st.success("Customer session reset. Returning to demo data.")
+            st.rerun()
+        if OWNER_ADMIN_MODE and st.button("Purge Expired Sessions", use_container_width=True):
+            purged = purge_expired_sessions(CUSTOMER_SESSION_TTL_HOURS)
+            st.cache_data.clear()
+            st.success(f"Purged {purged} expired session(s).")
+
+    if OWNER_ADMIN_MODE:
+        with st.expander("Deployment Readiness", expanded=False):
+            readiness = build_deployment_readiness()
+            needs_review = readiness[readiness["status"].isin(["Missing", "Review", "Review before deploy", "Internal only"])]
+            if needs_review.empty:
+                st.success("Deployment checks look ready.")
+            else:
+                st.warning(f"{len(needs_review)} deployment check(s) need review before a hosted customer demo.")
+            st.dataframe(readiness, width="stretch", hide_index=True)
+
+    mode_options = ["Client Demo Mode", "Full Prototype Mode"] if OWNER_ADMIN_MODE else ["Client Demo Mode"]
+    if st.session_state.presentation_mode not in mode_options:
+        st.session_state.presentation_mode = "Client Demo Mode"
+    if st.session_state.get("presentation_mode_selector") != st.session_state.presentation_mode:
+        st.session_state.presentation_mode_selector = st.session_state.presentation_mode
     mode = st.radio(
         "Demo Navigation",
-        ["Client Demo Mode", "Full Prototype Mode"],
-        index=0 if st.session_state.presentation_mode == "Client Demo Mode" else 1,
-        key="presentation_mode",
-        help="Client Demo Mode shows only the start page and the four first-meeting screens. Full Prototype Mode restores every prototype page.",
+        mode_options,
+        index=mode_options.index(st.session_state.presentation_mode),
+        key="presentation_mode_selector",
+        help=(
+            "Client Demo Mode shows only the start page and the four first-meeting screens. "
+            "Owner/admin mode restores every prototype page."
+        ),
     )
+    if mode != st.session_state.presentation_mode:
+        st.session_state.presentation_mode = mode
+        st.rerun()
     demo_mode = mode == "Client Demo Mode"
     st.caption(
         "Showing the guided first-meeting flow."
@@ -1173,7 +1399,7 @@ with st.sidebar:
     )
 
     st.markdown("<hr style='margin:8px 0'>", unsafe_allow_html=True)
-    source_badge = "CUSTOMER IMPORTS" if ACTIVE_DATA_SOURCE == "Customer Imports" else "DEMO DATA"
+    source_badge = ACTIVE_DATA_SOURCE.upper()
 
     st.markdown(f"""
     <div style="text-align:center;padding:12px 0 8px 0;">
@@ -2864,6 +3090,56 @@ with tab8:
             customer_tables = CUSTOMER_PREVIEW.get("tables", {})
             loaded_sources = customer_summary.get("loaded_sources", 0)
 
+            st.markdown("**Upload Customer Data For This Session**")
+            st.caption(
+                "Uploaded files are stored outside the repository in a per-session runtime folder. "
+                "Use reset when the review is finished so the next user starts from demo data."
+            )
+            upload_label = st.text_input(
+                "Session label",
+                value=runtime_summary(st.session_state.upload_session_id, CUSTOMER_SESSION_TTL_HOURS).get("label", ""),
+                placeholder="Example: Trades Resource review",
+                key="customer_upload_label",
+            )
+            uploaded_files = st.file_uploader(
+                "Upload roster, candidate trackers, test exports, or intake PDF",
+                type=sorted(ext.lstrip(".") for ext in ALLOWED_UPLOAD_EXTENSIONS),
+                accept_multiple_files=True,
+                key="customer_data_uploader",
+            )
+            up_col1, up_col2, up_col3 = st.columns([1, 1, 1])
+            with up_col1:
+                if st.button("Save Uploaded Files", use_container_width=True, disabled=not uploaded_files):
+                    manifest = save_uploaded_files(st.session_state.upload_session_id, uploaded_files, upload_label)
+                    st.session_state.customer_upload_manifest = manifest
+                    st.session_state.customer_upload_last_saved = manifest.get("updated_at")
+                    st.cache_data.clear()
+                    if manifest.get("saved_files"):
+                        st.session_state.data_source = "Uploaded Customer Data"
+                    st.rerun()
+            with up_col2:
+                if st.button("Use Uploaded Data", use_container_width=True, disabled=not UPLOADED_CUSTOMER_READY):
+                    st.session_state.data_source = "Uploaded Customer Data"
+                    st.rerun()
+            with up_col3:
+                if st.button("Use Demo Data", use_container_width=True):
+                    clear_customer_runtime_state(st.session_state)
+                    st.cache_data.clear()
+                    st.rerun()
+
+            upload_info = runtime_summary(st.session_state.upload_session_id, CUSTOMER_SESSION_TTL_HOURS)
+            if upload_info["file_count"]:
+                st.caption(f"Current session has {upload_info['file_count']} uploaded file(s), {upload_info['total_bytes']:,} bytes total.")
+                if upload_info["expires_at"]:
+                    st.caption(f"Session expires: {upload_info['expires_at']}")
+                st.dataframe(
+                    pd.DataFrame({"uploaded_file": upload_info["files"]}),
+                    width="stretch",
+                    hide_index=True,
+                )
+            else:
+                st.info("No files have been uploaded for this runtime session yet.")
+
             st.warning(
                 "Customer import previews may include private names, phone numbers, emails, and client details. "
                 "Keep raw uploads out of GitHub unless the repository and data policy are confirmed private.",
@@ -2884,6 +3160,36 @@ with tab8:
             elif not diag.empty:
                 st.caption("Import diagnostics")
                 st.dataframe(diag, width="stretch", hide_index=True)
+
+            review_df = CUSTOMER_IMPORT_REVIEW["review"]
+            issues_df = CUSTOMER_IMPORT_REVIEW["issues"]
+            checklist_df = CUSTOMER_IMPORT_REVIEW["checklist"]
+
+            st.markdown("**Import Review**")
+            st.caption("Start here before using uploaded data in the dashboard.")
+            st.dataframe(checklist_df, width="stretch", hide_index=True)
+            components.csv_download_button(checklist_df, "customer_import_checklist.csv", "Download import checklist")
+
+            source_inventory = customer_tables.get("source_inventory", pd.DataFrame())
+            if not source_inventory.empty:
+                st.markdown("**Uploaded File Recognition**")
+                st.dataframe(source_inventory, width="stretch", hide_index=True)
+                components.csv_download_button(source_inventory, "customer_source_recognition.csv", "Download source recognition")
+
+            st.markdown("**Dashboard Impact**")
+            st.dataframe(review_df, width="stretch", hide_index=True)
+            components.csv_download_button(review_df, "customer_import_dashboard_review.csv", "Download dashboard review")
+
+            if issues_df.empty:
+                st.success("No import review issues found for the loaded sources.")
+            else:
+                severity_order = {"Error": 0, "Warning": 1, "Info": 2}
+                issues_show = issues_df.copy()
+                issues_show["_sort"] = issues_show["severity"].map(severity_order).fillna(3)
+                issues_show = issues_show.sort_values(["_sort", "area", "issue"]).drop(columns=["_sort"])
+                st.caption(f"{len(issues_show)} review item(s) to confirm with the customer.")
+                st.dataframe(issues_show, width="stretch", hide_index=True)
+                components.csv_download_button(issues_show, "customer_import_review_items.csv", "Download review items")
 
             ci1, ci2, ci3, ci4, ci5, ci6 = st.tabs([
                 "Roster Assignments",

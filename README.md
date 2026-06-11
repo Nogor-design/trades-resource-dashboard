@@ -4,6 +4,21 @@ A polished Streamlit operations dashboard for a skilled-trades recruiting and st
 
 > ⚠️ **All data is fake/demo data.** No real employee, client, or business data is used.
 
+## Customer Data Safety
+
+Remote customer uploads are runtime-only. Uploaded files are saved under ignored
+`runtime_uploads/` and session metadata under ignored `runtime_sessions/`, never
+under tracked demo CSVs. Use **Reset This Session** after a customer review to
+purge uploaded files, clear cached tables/session notes, and return the app to
+safe demo data for the next user.
+
+Customer upload sessions expire automatically after 24 hours by default. Set
+`CUSTOMER_SESSION_TTL_HOURS` to adjust that window for a hosted deployment.
+
+For owner-only local development, ignored files in `data/` can be previewed by
+starting the app with both `ENABLE_OWNER_ADMIN_TOOLS=true` and
+`ENABLE_LOCAL_CUSTOMER_FILES=true`.
+
 ---
 
 ## Quick Start
@@ -17,6 +32,33 @@ streamlit run app.py
 ```
 
 The app opens at **http://localhost:8501** in your browser.
+
+### Local Login Bypass
+
+For faster local testing, start Streamlit with login bypass enabled:
+
+```powershell
+$env:BYPASS_DEMO_LOGIN = "true"
+streamlit run app.py
+```
+
+Leave `BYPASS_DEMO_LOGIN` unset, or set it to `false`, in hosted deployments so
+the username/password gate is required. The app shows a sidebar warning whenever
+login bypass is active.
+
+Owner/admin-only controls, including `Full Prototype Mode`, `Data / Admin`, local
+customer-file preview, and expired-session cleanup, require:
+
+```powershell
+$env:ENABLE_OWNER_ADMIN_TOOLS = "true"
+```
+
+Leave `ENABLE_OWNER_ADMIN_TOOLS` unset for customer-facing hosted sessions.
+
+The Customer Imports review recognizes common renamed exports such as roster/open
+orders workbooks, main candidate trackers, available-candidate CSVs, CNC/welder
+test results, and intake PDFs. It also lists unrecognized uploads so they can be
+confirmed before the demo starts.
 
 ---
 

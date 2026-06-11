@@ -34,6 +34,17 @@ CANDIDATE_FILES = {
     "welder_tests": "Candidate Tracking 2026(Welder Test Results).csv",
 }
 
+SOURCE_LABELS = {
+    "roster": "Roster / open orders workbook",
+    "main": "Main candidate tracker",
+    "available": "Available / pending pre-employ candidates",
+    "cnc_tests": "CNC test results",
+    "welder_tests": "Welder test results",
+    "intake_pdf": "Client intake PDF",
+}
+
+SOURCE_ORDER = ["roster", "main", "available", "cnc_tests", "welder_tests", "intake_pdf"]
+
 
 def _clean(value: Any) -> str:
     if value is None or pd.isna(value):
@@ -79,6 +90,81 @@ def _read_csv_with_fallback(path: Path, **kwargs) -> tuple[pd.DataFrame, str]:
     raise RuntimeError(f"Unable to read {path.name}: {last_error}")
 
 
+def _filename_tokens(path: Path) -> set[str]:
+    text = re.sub(r"[^a-z0-9]+", " ", path.stem.lower())
+    return {token for token in text.split() if token}
+
+
+def _candidate_source_key(path: Path) -> str | None:
+    if path.name.startswith("~$"):
+        return None
+
+    suffix = path.suffix.lower()
+    tokens = _filename_tokens(path)
+    stem = " ".join(sorted(tokens))
+
+    if suffix in {".xlsx", ".xls", ".xlsm"}:
+        if {"roster", "techs"} & tokens or ({"open", "orders"} <= tokens):
+            return "roster"
+
+    if suffix == ".pdf":
+        if {"intake", "template", "technical", "questions", "kick", "machinist"} & tokens:
+            return "intake_pdf"
+
+    if suffix != ".csv":
+        return None
+
+    if "cnc" in tokens and ({"test", "tests", "results"} & tokens):
+        return "cnc_tests"
+    if ({"welder", "weld"} & tokens) and ({"test", "tests", "results"} & tokens):
+        return "welder_tests"
+    if {"available", "pre", "employ"} & tokens:
+        return "available"
+    if "pending" in tokens and "deployment" in tokens:
+        return "pending_deployment"
+    if "no" in tokens and "candidate" in tokens:
+        return "no"
+    if "candidate" in tokens and not any(word in stem for word in ["available", "pending", "cnc", "welder", "test", "results"]):
+        return "main"
+
+    return None
+
+
+def _source_inventory(data_dir: Path) -> tuple[dict[str, Path], pd.DataFrame]:
+    recognized: dict[str, Path] = {}
+    rows: list[dict[str, str]] = []
+    if not data_dir.exists():
+        return recognized, pd.DataFrame(columns=["filename", "recognized_as", "status"])
+
+    for path in sorted(item for item in data_dir.iterdir() if item.is_file()):
+        key = _candidate_source_key(path)
+        if key and key not in recognized:
+            recognized[key] = path
+            rows.append({
+                "filename": path.name,
+                "recognized_as": SOURCE_LABELS.get(key, key.replace("_", " ").title()),
+                "status": "used",
+            })
+        elif key:
+            rows.append({
+                "filename": path.name,
+                "recognized_as": SOURCE_LABELS.get(key, key.replace("_", " ").title()),
+                "status": "duplicate ignored",
+            })
+        else:
+            rows.append({
+                "filename": path.name,
+                "recognized_as": "",
+                "status": "unrecognized",
+            })
+    return recognized, pd.DataFrame(rows)
+
+
+def _source_path(data_dir: Path, source_key: str) -> Path | None:
+    recognized, _ = _source_inventory(data_dir)
+    return recognized.get(source_key)
+
+
 def _candidate_key(name: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", _clean(name).lower()).strip()
 
@@ -119,8 +205,8 @@ def _process_status(row: dict[str, Any]) -> str:
 
 
 def _load_roster(data_dir: Path, diagnostics: list[dict[str, str]]) -> dict[str, pd.DataFrame]:
-    path = data_dir / ROSTER_FILE
-    if not path.exists():
+    path = _source_path(data_dir, "roster")
+    if path is None:
         diagnostics.append({"source": ROSTER_FILE, "status": "missing", "detail": "Roster workbook not found."})
         return {
             "customer_assignments": pd.DataFrame(),
@@ -258,7 +344,7 @@ def _load_roster(data_dir: Path, diagnostics: list[dict[str, str]]) -> dict[str,
         })
 
     diagnostics.append({
-        "source": ROSTER_FILE,
+        "source": path.name,
         "status": "loaded",
         "detail": f"{len(assignment_rows)} assignments, {len(open_position_rows)} open positions, {len(ended_rows)} ended assignments.",
     })
@@ -272,8 +358,8 @@ def _load_roster(data_dir: Path, diagnostics: list[dict[str, str]]) -> dict[str,
 def _load_test_scores(data_dir: Path, diagnostics: list[dict[str, str]]) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
 
-    cnc_path = data_dir / CANDIDATE_FILES["cnc_tests"]
-    if cnc_path.exists():
+    cnc_path = _source_path(data_dir, "cnc_tests")
+    if cnc_path is not None:
         try:
             cnc, _ = _read_csv_with_fallback(cnc_path)
             for _, row in cnc.iterrows():
@@ -286,14 +372,14 @@ def _load_test_scores(data_dir: Path, diagnostics: list[dict[str, str]]) -> pd.D
                     "test_type": "CNC",
                     "raw_score": _clean(row.get("Total Score")) or _clean(row.get("Score.1")) or _clean(row.get("Score")),
                     "score_percent": _parse_percent(row.get("Total Score")) or _parse_percent(row.get("Score.1")) or _parse_percent(row.get("Score")),
-                    "source_file": CANDIDATE_FILES["cnc_tests"],
+                    "source_file": cnc_path.name,
                 })
-            diagnostics.append({"source": CANDIDATE_FILES["cnc_tests"], "status": "loaded", "detail": f"{len(cnc)} CNC test rows."})
+            diagnostics.append({"source": cnc_path.name, "status": "loaded", "detail": f"{len(cnc)} CNC test rows."})
         except Exception as exc:
-            diagnostics.append({"source": CANDIDATE_FILES["cnc_tests"], "status": "error", "detail": str(exc)})
+            diagnostics.append({"source": cnc_path.name, "status": "error", "detail": str(exc)})
 
-    welder_path = data_dir / CANDIDATE_FILES["welder_tests"]
-    if welder_path.exists():
+    welder_path = _source_path(data_dir, "welder_tests")
+    if welder_path is not None:
         try:
             welder, _ = _read_csv_with_fallback(welder_path)
             for _, row in welder.iterrows():
@@ -306,11 +392,11 @@ def _load_test_scores(data_dir: Path, diagnostics: list[dict[str, str]]) -> pd.D
                     "test_type": "Welder",
                     "raw_score": _clean(row.get("Score")),
                     "score_percent": _parse_percent(row.get("Score")),
-                    "source_file": CANDIDATE_FILES["welder_tests"],
+                    "source_file": welder_path.name,
                 })
-            diagnostics.append({"source": CANDIDATE_FILES["welder_tests"], "status": "loaded", "detail": f"{len(welder)} welder test rows."})
+            diagnostics.append({"source": welder_path.name, "status": "loaded", "detail": f"{len(welder)} welder test rows."})
         except Exception as exc:
-            diagnostics.append({"source": CANDIDATE_FILES["welder_tests"], "status": "error", "detail": str(exc)})
+            diagnostics.append({"source": welder_path.name, "status": "error", "detail": str(exc)})
 
     return pd.DataFrame(rows)
 
@@ -328,8 +414,8 @@ def _load_candidate_process(data_dir: Path, tests: pd.DataFrame, diagnostics: li
                 "best_test_percent": best.get("score_percent"),
             }
 
-    main_path = data_dir / CANDIDATE_FILES["main"]
-    if main_path.exists():
+    main_path = _source_path(data_dir, "main")
+    if main_path is not None:
         try:
             raw, enc = _read_csv_with_fallback(main_path, header=None)
             if len(raw) >= 2:
@@ -360,7 +446,7 @@ def _load_candidate_process(data_dir: Path, tests: pd.DataFrame, diagnostics: li
                         "action_item": _clean(row.get("Action Item")),
                         "recruiter_owner": "Laura/Joe",
                         "source_status": "Candidate Process",
-                        "source_file": CANDIDATE_FILES["main"],
+                        "source_file": main_path.name,
                     }
                     record.update(test_lookup.get(key, {
                         "best_test_type": "",
@@ -369,14 +455,14 @@ def _load_candidate_process(data_dir: Path, tests: pd.DataFrame, diagnostics: li
                     }))
                     record["process_status"] = _process_status(record)
                     rows.append(record)
-            diagnostics.append({"source": CANDIDATE_FILES["main"], "status": "loaded", "detail": f"{max(0, len(raw) - 2)} candidate process rows ({enc})."})
+            diagnostics.append({"source": main_path.name, "status": "loaded", "detail": f"{max(0, len(raw) - 2)} candidate process rows ({enc})."})
         except Exception as exc:
-            diagnostics.append({"source": CANDIDATE_FILES["main"], "status": "error", "detail": str(exc)})
+            diagnostics.append({"source": main_path.name, "status": "error", "detail": str(exc)})
     else:
         diagnostics.append({"source": CANDIDATE_FILES["main"], "status": "missing", "detail": "Main candidate tracker export not found."})
 
-    available_path = data_dir / CANDIDATE_FILES["available"]
-    if available_path.exists():
+    available_path = _source_path(data_dir, "available")
+    if available_path is not None:
         try:
             available, _ = _read_csv_with_fallback(available_path)
             existing = {_candidate_key(row["candidate_name"]) for row in rows if row.get("candidate_name")}
@@ -402,22 +488,22 @@ def _load_candidate_process(data_dir: Path, tests: pd.DataFrame, diagnostics: li
                     "action_item": f"Submit: {_clean(row.get('Submit'))}" if _clean(row.get("Submit")) else "",
                     "recruiter_owner": "Laura",
                     "source_status": "Available - pending pre-employ",
-                    "source_file": CANDIDATE_FILES["available"],
+                    "source_file": available_path.name,
                     "best_test_type": "",
                     "best_test_score": "",
                     "best_test_percent": None,
                     "process_status": "Available",
                 })
-            diagnostics.append({"source": CANDIDATE_FILES["available"], "status": "loaded", "detail": f"{len(available)} available/pending rows."})
+            diagnostics.append({"source": available_path.name, "status": "loaded", "detail": f"{len(available)} available/pending rows."})
         except Exception as exc:
-            diagnostics.append({"source": CANDIDATE_FILES["available"], "status": "error", "detail": str(exc)})
+            diagnostics.append({"source": available_path.name, "status": "error", "detail": str(exc)})
 
     return pd.DataFrame(rows)
 
 
 def _load_intake_questions(data_dir: Path, diagnostics: list[dict[str, str]]) -> pd.DataFrame:
-    path = data_dir / INTAKE_PDF
-    if not path.exists():
+    path = _source_path(data_dir, "intake_pdf")
+    if path is None:
         diagnostics.append({"source": INTAKE_PDF, "status": "missing", "detail": "Client intake PDF not found."})
         return pd.DataFrame()
 
@@ -462,7 +548,7 @@ def _load_intake_questions(data_dir: Path, diagnostics: list[dict[str, str]]) ->
                             "question": current,
                             "page": page_number,
                             "timecard_related": bool(re.search(r"timecard|clock|pay week|break|lunch", current, re.I)),
-                            "source_file": INTAKE_PDF,
+                            "source_file": path.name,
                         })
                     current = line
                 elif current and len(current) < 220 and not re.search(r"brands that make", line, re.I):
@@ -473,9 +559,9 @@ def _load_intake_questions(data_dir: Path, diagnostics: list[dict[str, str]]) ->
                 "question": current,
                 "page": len(reader.pages),
                 "timecard_related": bool(re.search(r"timecard|clock|pay week|break|lunch", current, re.I)),
-                "source_file": INTAKE_PDF,
+                "source_file": path.name,
             })
-        diagnostics.append({"source": INTAKE_PDF, "status": "loaded", "detail": f"{len(rows)} intake prompts from {len(reader.pages)} pages."})
+        diagnostics.append({"source": path.name, "status": "loaded", "detail": f"{len(rows)} intake prompts from {len(reader.pages)} pages."})
     except Exception as exc:
         diagnostics.append({"source": INTAKE_PDF, "status": "error", "detail": str(exc)})
         return pd.DataFrame()
@@ -754,6 +840,7 @@ def build_customer_dashboard_data(preview: dict[str, Any]) -> dict[str, pd.DataF
 def load_customer_import_preview(data_dir: str | os.PathLike[str] = DATA_DIR) -> dict[str, Any]:
     data_path = Path(data_dir)
     diagnostics: list[dict[str, str]] = []
+    _, source_inventory = _source_inventory(data_path)
 
     roster_tables = _load_roster(data_path, diagnostics)
     tests = _load_test_scores(data_path, diagnostics)
@@ -768,6 +855,7 @@ def load_customer_import_preview(data_dir: str | os.PathLike[str] = DATA_DIR) ->
         "customer_intake_questions": intake_questions,
         "timecard_blueprint": timecard_blueprint,
         "import_diagnostics": pd.DataFrame(diagnostics),
+        "source_inventory": source_inventory,
     }
 
     summary = {
@@ -780,6 +868,9 @@ def load_customer_import_preview(data_dir: str | os.PathLike[str] = DATA_DIR) ->
         "timecard_setup_fields": len(tables["timecard_blueprint"]),
         "loaded_sources": sum(1 for item in diagnostics if item["status"] == "loaded"),
         "missing_or_error_sources": sum(1 for item in diagnostics if item["status"] != "loaded"),
+        "recognized_files": int((source_inventory["status"] == "used").sum()) if not source_inventory.empty else 0,
+        "unrecognized_files": int((source_inventory["status"] == "unrecognized").sum()) if not source_inventory.empty else 0,
+        "duplicate_files": int((source_inventory["status"] == "duplicate ignored").sum()) if not source_inventory.empty else 0,
     }
 
     return {"summary": summary, "tables": tables, "diagnostics": diagnostics}

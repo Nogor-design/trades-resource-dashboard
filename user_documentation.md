@@ -143,6 +143,18 @@ streamlit run app.py
 
 This starts the local Streamlit server on port 8501. Your browser will open automatically.
 
+For local testing without the password screen, set `BYPASS_DEMO_LOGIN=true`
+before launch. Do not enable that flag for hosted customer demos; leave it unset
+or set it to `false` so the configured demo username/password is required.
+
+Owner/admin-only controls require `ENABLE_OWNER_ADMIN_TOOLS=true`. Leave that
+unset for customer-facing sessions so remote users stay in the guided demo flow
+and cannot open the full prototype or admin pages.
+
+When owner/admin tools are enabled, the sidebar includes a Deployment Readiness
+panel showing login-bypass status, credentials, owner/admin mode, local-file
+preview, upload TTL, runtime folders, and active data source.
+
 ---
 
 ## Success Metrics
@@ -246,6 +258,17 @@ This is a concept prototype using generated demo data. A production version woul
 - Deciding where the system lives long-term
 
 Notes entered in this prototype are stored only in the current browser session and are not persisted to any database. A production version would save notes to a database or approved shared data source.
+
+## Customer Upload And Reset
+
+For remote reviews, customer uploads should be treated as temporary session data.
+Uploaded files are stored in ignored runtime folders, not in the tracked demo
+CSV folder. When a review is finished, use **Reset This Session** to purge the
+uploaded files, clear cached import tables and session notes, and return the app
+to generated demo data before another user opens it.
+
+Upload sessions expire automatically after 24 hours by default. The sidebar
+shows the active session, uploaded file count, and expiration status.
 
 ---
 
